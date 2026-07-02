@@ -83,6 +83,10 @@ func main() {
 			})
 		})
 		
+		api.GET("/branding", func(c *gin.Context) {
+			c.JSON(200, config.Get().Branding)
+		})
+		
 		api.GET("/check", middleware.RateLimit(), detectionHandler.CheckIP)
 	}
 

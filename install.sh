@@ -5,7 +5,7 @@
 set -e
 
 # Constants
-REPO_URL="https://github.com/placeholder/neocheck.git" # Replace with actual URL
+REPO_URL="https://github.com/neoauroraproject/neocheck.git"
 INSTALL_DIR="/opt/neocheck"
 
 # Colors
@@ -187,6 +187,17 @@ generate_config() {
     JWT_SECRET=$(openssl rand -hex 32)
     SESSION_SECRET=$(openssl rand -hex 32)
 
+    # Determine Public URL
+    if [ "$SSL_ENABLED" = "true" ]; then
+        PUBLIC_URL="https://$PUBLIC_ADDRESS"
+    else
+        if [ "$SERVER_PORT" = "80" ]; then
+            PUBLIC_URL="http://$PUBLIC_ADDRESS"
+        else
+            PUBLIC_URL="http://$PUBLIC_ADDRESS:$SERVER_PORT"
+        fi
+    fi
+
     cat <<EOF > "$INSTALL_DIR/config/config.yaml"
 server:
   host: "0.0.0.0"
@@ -195,6 +206,15 @@ branding:
   name: "$BRAND_NAME"
   subtitle: "Know your connection in seconds."
   logo: ""
+  favicon: ""
+  primary_color: "#8b5cf6"
+  accent_color: "#6366f1"
+  footer_text: "Managed by Immutable Diagnostics."
+  copyright_text: "$BRAND_NAME"
+  support_url: "https://github.com/neoauroraproject/neocheck/issues"
+  github_url: "https://github.com/neoauroraproject/neocheck"
+  documentation_url: "https://github.com/neoauroraproject/neocheck/tree/main/docs"
+  public_url: "$PUBLIC_URL"
 ssl:
   enabled: $SSL_ENABLED
   cert_path: "$SSL_CERT"

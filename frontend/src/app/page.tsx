@@ -61,11 +61,46 @@ export default function Home() {
   const [error, setError] = useState("")
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
 
+  const [branding, setBranding] = useState({
+    name: "NeoCheck",
+    subtitle: "Know your connection in seconds.",
+    logo: "",
+    favicon: "",
+    primary_color: "#8b5cf6",
+    accent_color: "#6366f1",
+    footer_text: "Managed by Immutable Diagnostics.",
+    copyright_text: "NeoCheck",
+    support_url: "",
+    github_url: "",
+    documentation_url: ""
+  })
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const match = window.matchMedia("(prefers-color-scheme: dark)")
       setTheme(match.matches ? "dark" : "light")
     }
+
+    fetch("/api/branding")
+      .then(res => {
+        if (res.ok) return res.json()
+      })
+      .then(data => {
+        if (data) {
+          setBranding(data)
+          if (data.name) document.title = `${data.name} - ${data.subtitle || "Diagnostics"}`
+          if (data.favicon) {
+            let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement
+            if (!link) {
+              link = document.createElement('link')
+              link.rel = 'icon'
+              document.getElementsByTagName('head')[0].appendChild(link)
+            }
+            link.href = data.favicon
+          }
+        }
+      })
+      .catch(() => {})
   }, [])
 
   const startAnalysis = async () => {
@@ -198,9 +233,16 @@ export default function Home() {
         {/* Header */}
         <header className="flex justify-between items-center mb-10">
           <div className="flex items-center gap-2">
-            <span className="font-black text-xl tracking-tight bg-gradient-to-r from-violet-400 to-indigo-500 bg-clip-text text-transparent">
-              NEOCHECK
-            </span>
+            {branding.logo ? (
+              <img src={branding.logo} alt={branding.name} className="h-6 object-contain" />
+            ) : (
+              <span 
+                className="font-black text-xl tracking-tight bg-gradient-to-r bg-clip-text text-transparent"
+                style={{ backgroundImage: `linear-gradient(to right, ${branding.primary_color || '#8b5cf6'}, ${branding.accent_color || '#6366f1'})` }}
+              >
+                {branding.name.toUpperCase()}
+              </span>
+            )}
           </div>
 
           {/* Theme Toggle */}
@@ -585,9 +627,16 @@ export default function Home() {
 
         {/* Footer */}
         <footer className={`mt-16 text-center text-[10px] font-bold tracking-wider uppercase border-t py-6 transition-colors duration-700 ${
-          isDark ? "border-zinc-900 text-zinc-600" : "border-zinc-200 text-zinc-500"
+          isDark ? "border-zinc-900 text-zinc-600" : "border-zinc-200 text-zinc-550"
         }`}>
-          &copy; {new Date().getFullYear()} NeoCheck. Managed by Immutable Diagnostics.
+          <div>
+            &copy; {new Date().getFullYear()} {branding.copyright_text || branding.name}. {branding.footer_text}
+          </div>
+          <div className="flex justify-center gap-4 mt-2 normal-case font-semibold text-zinc-500 dark:text-zinc-500 text-[11px]">
+            {branding.support_url && <a href={branding.support_url} target="_blank" rel="noreferrer" className="hover:text-violet-500 transition-colors">Support</a>}
+            {branding.github_url && <a href={branding.github_url} target="_blank" rel="noreferrer" className="hover:text-violet-500 transition-colors">GitHub</a>}
+            {branding.documentation_url && <a href={branding.documentation_url} target="_blank" rel="noreferrer" className="hover:text-violet-500 transition-colors">Docs</a>}
+          </div>
         </footer>
 
       </div>

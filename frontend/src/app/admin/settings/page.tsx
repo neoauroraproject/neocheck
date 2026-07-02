@@ -13,6 +13,15 @@ interface ConfigData {
     name: string
     subtitle: string
     logo: string
+    favicon: string
+    primary_color: string
+    accent_color: string
+    footer_text: string
+    copyright_text: string
+    support_url: string
+    github_url: string
+    documentation_url: string
+    public_url: string
   }
   ssl: {
     enabled: boolean
@@ -115,7 +124,7 @@ export default function AdminSettings() {
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
           <div>
             <h2 className="text-xl font-bold">Branding Settings</h2>
-            <p className="text-zinc-400 text-xs mt-0.5">Customize client UI appearance</p>
+            <p className="text-zinc-400 text-xs mt-0.5">Customize client UI appearance and links</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
@@ -135,6 +144,96 @@ export default function AdminSettings() {
                 required
                 value={config?.branding.subtitle || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, subtitle: e.target.value } })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Logo URL / Base64</label>
+              <input
+                type="text"
+                value={config?.branding.logo || ""}
+                onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, logo: e.target.value } })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Public URL (e.g. http://example.com)</label>
+              <input
+                type="text"
+                value={config?.branding.public_url || ""}
+                onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, public_url: e.target.value } })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Favicon URL / Base64</label>
+              <input
+                type="text"
+                value={config?.branding.favicon || ""}
+                onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, favicon: e.target.value } })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Primary Color (Hex)</label>
+              <input
+                type="text"
+                value={config?.branding.primary_color || ""}
+                onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, primary_color: e.target.value } })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Accent Color (Hex)</label>
+              <input
+                type="text"
+                value={config?.branding.accent_color || ""}
+                onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, accent_color: e.target.value } })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Footer Text</label>
+              <input
+                type="text"
+                value={config?.branding.footer_text || ""}
+                onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, footer_text: e.target.value } })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Copyright Text</label>
+              <input
+                type="text"
+                value={config?.branding.copyright_text || ""}
+                onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, copyright_text: e.target.value } })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Support URL</label>
+              <input
+                type="text"
+                value={config?.branding.support_url || ""}
+                onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, support_url: e.target.value } })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">GitHub Repo URL</label>
+              <input
+                type="text"
+                value={config?.branding.github_url || ""}
+                onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, github_url: e.target.value } })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Documentation URL</label>
+              <input
+                type="text"
+                value={config?.branding.documentation_url || ""}
+                onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, documentation_url: e.target.value } })}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
               />
             </div>

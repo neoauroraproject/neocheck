@@ -35,9 +35,18 @@ type ServerConfig struct {
 }
 
 type BrandingConfig struct {
-	Name     string `mapstructure:"name" json:"name"`
-	Subtitle string `mapstructure:"subtitle" json:"subtitle"`
-	Logo     string `mapstructure:"logo" json:"logo"`
+	Name             string `mapstructure:"name" json:"name"`
+	Subtitle         string `mapstructure:"subtitle" json:"subtitle"`
+	Logo             string `mapstructure:"logo" json:"logo"`
+	Favicon          string `mapstructure:"favicon" json:"favicon"`
+	PrimaryColor     string `mapstructure:"primary_color" json:"primary_color"`
+	AccentColor      string `mapstructure:"accent_color" json:"accent_color"`
+	FooterText       string `mapstructure:"footer_text" json:"footer_text"`
+	CopyrightText    string `mapstructure:"copyright_text" json:"copyright_text"`
+	SupportURL       string `mapstructure:"support_url" json:"support_url"`
+	GithubURL        string `mapstructure:"github_url" json:"github_url"`
+	DocumentationURL string `mapstructure:"documentation_url" json:"documentation_url"`
+	PublicURL        string `mapstructure:"public_url" json:"public_url"`
 }
 
 type SSLConfig struct {
@@ -234,6 +243,15 @@ func generateDefaults() error {
 	viper.SetDefault("branding.name", "NeoCheck")
 	viper.SetDefault("branding.subtitle", "Know your connection in seconds.")
 	viper.SetDefault("branding.logo", "")
+	viper.SetDefault("branding.favicon", "")
+	viper.SetDefault("branding.primary_color", "#8b5cf6")
+	viper.SetDefault("branding.accent_color", "#6366f1")
+	viper.SetDefault("branding.footer_text", "Managed by Immutable Diagnostics.")
+	viper.SetDefault("branding.copyright_text", "NeoCheck")
+	viper.SetDefault("branding.support_url", "https://github.com/neoauroraproject/neocheck/issues")
+	viper.SetDefault("branding.github_url", "https://github.com/neoauroraproject/neocheck")
+	viper.SetDefault("branding.documentation_url", "https://github.com/neoauroraproject/neocheck/tree/main/docs")
+	viper.SetDefault("branding.public_url", "http://localhost:3000")
 
 	viper.SetDefault("ssl.enabled", false)
 	viper.SetDefault("ssl.cert_path", "")

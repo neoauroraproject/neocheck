@@ -2,6 +2,9 @@
 # NeoCheck Installer Script
 # Designed for Ubuntu Server
 
+# Move to root to avoid getcwd errors if run from a deleted directory
+cd / || true
+
 set -e
 
 # Constants

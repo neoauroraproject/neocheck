@@ -261,8 +261,6 @@ generate_docker_compose() {
 services:
   backend:
     image: ghcr.io/neoauroraproject/neocheck-backend:latest
-    ports:
-      - "127.0.0.1:8080:8080"
     volumes:
       - ./config:/opt/neocheck/config
       - ./database:/opt/neocheck/database

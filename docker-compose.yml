@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - ./neocheck-data/config:/opt/neocheck/config
+      - ./neocheck-data/database:/opt/neocheck/database
+      - ./neocheck-data/ssl:/opt/neocheck/ssl
+      - ./neocheck-data/logs:/opt/neocheck/logs
+      - ./neocheck-data/backups:/opt/neocheck/backups
+    restart: unless-stopped
+    environment:
+      - GIN_MODE=release
+      - NEOCHECK_DATA_DIR=/opt/neocheck
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    restart: unless-stopped
+    depends_on:
+      - backend

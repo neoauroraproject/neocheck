@@ -1,0 +1,57 @@
+# NeoCheck - Git Ignore Configuration
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Testing
+coverage/
+
+# Next.js Production Builds
+.next/
+out/
+
+# Production standalone build files
+next-env.d.ts
+
+# Go Binaries and Executables
+backend/neocheck
+backend/neocheck-backend
+neocheck
+neocheck-backend
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.prof
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Environment Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Local Data / Volume Mounts (Stateless Outside Docker)
+neocheck-data/
+/neocheck-data
+/opt/neocheck
+
+# IDEs & Editor Configuration
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.gemini/
+.agents/

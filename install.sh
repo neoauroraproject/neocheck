@@ -206,7 +206,7 @@ generate_config() {
     cat <<EOF > "$INSTALL_DIR/config/config.yaml"
 server:
   host: "0.0.0.0"
-  port: $SERVER_PORT
+  port: 8080
 branding:
   name: "$BRAND_NAME"
   subtitle: "Know your connection in seconds."

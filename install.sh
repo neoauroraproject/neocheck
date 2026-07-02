@@ -83,7 +83,9 @@ prompt_port() {
 }
 
 prompt_address() {
-    read -p "Enter Public Address (IP or Domain) [e.g. 192.168.1.10]: " PUBLIC_ADDRESS </dev/tty || true
+    AUTO_IP=$(curl -sSL https://api.ipify.org || echo "127.0.0.1")
+    read -p "Enter Public Address (IP or Domain) [$AUTO_IP]: " PUBLIC_ADDRESS </dev/tty || true
+    PUBLIC_ADDRESS=${PUBLIC_ADDRESS:-$AUTO_IP}
     while [ -z "$PUBLIC_ADDRESS" ]; do
         read -p "Public Address is required: " PUBLIC_ADDRESS </dev/tty || true
     done
@@ -255,9 +257,7 @@ generate_docker_compose() {
     cat <<EOF > "$INSTALL_DIR/docker-compose.yml"
 services:
   backend:
-    build:
-      context: ./src/backend
-      dockerfile: Dockerfile
+    image: ghcr.io/neoauroraproject/neocheck-backend:latest
     ports:
       - "$SERVER_PORT:8080"
     volumes:
@@ -272,9 +272,7 @@ services:
       - NEOCHECK_DATA_DIR=/opt/neocheck
 
   frontend:
-    build:
-      context: ./src/frontend
-      dockerfile: Dockerfile
+    image: ghcr.io/neoauroraproject/neocheck-frontend:latest
     ports:
       - "3000:3000"
     restart: unless-stopped
@@ -289,9 +287,9 @@ start_application() {
     cd "$INSTALL_DIR"
     
     if docker compose version &> /dev/null; then
-        docker compose up -d --build
+        docker compose pull && docker compose up -d
     else
-        docker-compose up -d --build
+        docker-compose pull && docker-compose up -d
     fi
 
     log_info "Waiting for application health check..."

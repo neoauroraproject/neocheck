@@ -349,24 +349,66 @@ action_install() {
 }
 
 action_update() {
-    log_info "Update functionality is reserved for future implementation."
+    log_info "Update functionality is handled by reinstalling via Option 1."
 }
 
 action_uninstall() {
-    log_info "Uninstall functionality is reserved for future implementation."
+    log_info "Starting uninstallation process..."
+    
+    if [ -d "$INSTALL_DIR" ]; then
+        cd "$INSTALL_DIR"
+        
+        log_info "Stopping containers and freeing up ports..."
+        if docker compose version &> /dev/null; then
+            docker compose down -v || true
+        else
+            docker-compose down -v || true
+        fi
+        
+        cd /
+        log_info "Removing installation directory: $INSTALL_DIR"
+        rm -rf "$INSTALL_DIR"
+        
+        log_success "NeoCheck has been completely uninstalled and all ports are freed!"
+    else
+        log_warn "Installation directory $INSTALL_DIR not found. Nothing to uninstall."
+    fi
 }
 
 action_repair() {
-    log_info "Repair functionality is reserved for future implementation."
+    log_info "Repair functionality is handled by reinstalling via Option 1."
 }
 
 # Main Command Router
-COMMAND=${1:-install}
+show_menu() {
+    echo -e "${CYAN}======================================${NC}"
+    echo -e "${GREEN}      NeoCheck Setup & Manager      ${NC}"
+    echo -e "${CYAN}======================================${NC}"
+    echo -e "1) Install / Update NeoCheck"
+    echo -e "2) Uninstall NeoCheck"
+    echo -e "3) Exit"
+    echo -e "${CYAN}======================================${NC}"
+    
+    while true; do
+        read -p "Select an option [1-3]: " MENU_CHOICE </dev/tty || true
+        case $MENU_CHOICE in
+            1) action_install; break;;
+            2) action_uninstall; break;;
+            3) log_info "Exiting."; exit 0;;
+            *) echo "Invalid option. Please enter 1, 2, or 3.";;
+        esac
+    done
+}
 
-case "$COMMAND" in
-    install) action_install ;;
-    update) action_update ;;
-    uninstall) action_uninstall ;;
-    repair) action_repair ;;
-    *) log_error "Unknown command: $COMMAND. Valid commands: install, update, uninstall, repair." ;;
-esac
+if [ -z "$1" ]; then
+    show_menu
+else
+    COMMAND=$1
+    case "$COMMAND" in
+        install) action_install ;;
+        update) action_install ;;
+        uninstall) action_uninstall ;;
+        repair) action_install ;;
+        *) log_error "Unknown command: $COMMAND. Valid commands: install, update, uninstall, repair." ;;
+    esac
+fi

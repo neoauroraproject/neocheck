@@ -68,6 +68,10 @@ func main() {
 	// Initialize Gin
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New() // Use gin.New() to add custom middleware
+	
+	// Trust Docker internal networks so Next.js proxy passes the real IP via X-Forwarded-For
+	_ = r.SetTrustedProxies([]string{"172.16.0.0/12", "192.168.0.0/16", "10.0.0.0/8", "127.0.0.1", "::1"})
+	
 	r.Use(gin.Recovery())
 	r.Use(admin.ActiveRequestsMiddleware()) // Track active requests
 	r.Use(middleware.SecureHeaders())       // Global security headers

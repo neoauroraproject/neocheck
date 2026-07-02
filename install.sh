@@ -70,7 +70,7 @@ check_dependencies() {
 
 prompt_port() {
     while true; do
-        read -p "Enter Server Port [8080]: " SERVER_PORT
+        read -p "Enter Server Port [8080]: " SERVER_PORT </dev/tty
         SERVER_PORT=${SERVER_PORT:-8080}
         
         # Check if port is in use
@@ -83,20 +83,20 @@ prompt_port() {
 }
 
 prompt_address() {
-    read -p "Enter Public Address (IP or Domain) [e.g. 192.168.1.10]: " PUBLIC_ADDRESS
+    read -p "Enter Public Address (IP or Domain) [e.g. 192.168.1.10]: " PUBLIC_ADDRESS </dev/tty
     while [ -z "$PUBLIC_ADDRESS" ]; do
-        read -p "Public Address is required: " PUBLIC_ADDRESS
+        read -p "Public Address is required: " PUBLIC_ADDRESS </dev/tty
     done
 }
 
 prompt_admin() {
-    read -p "Enter Admin Username [admin]: " ADMIN_USER
+    read -p "Enter Admin Username [admin]: " ADMIN_USER </dev/tty
     ADMIN_USER=${ADMIN_USER:-admin}
 
     while true; do
-        read -s -p "Enter Admin Password: " ADMIN_PASS
+        read -s -p "Enter Admin Password: " ADMIN_PASS </dev/tty
         echo
-        read -s -p "Confirm Admin Password: " ADMIN_PASS_CONFIRM
+        read -s -p "Confirm Admin Password: " ADMIN_PASS_CONFIRM </dev/tty
         echo
         
         if [ -z "$ADMIN_PASS" ]; then
@@ -115,13 +115,13 @@ prompt_ssl() {
     SSL_KEY=""
     
     while true; do
-        read -p "Enable SSL? (Y/N) [N]: " SSL_CHOICE
+        read -p "Enable SSL? (Y/N) [N]: " SSL_CHOICE </dev/tty
         SSL_CHOICE=${SSL_CHOICE:-N}
         case $SSL_CHOICE in
             [Yy]* ) 
                 SSL_ENABLED=true
                 while true; do
-                    read -p "Enter Absolute Path to Certificate (.crt/.pem): " SSL_CERT
+                    read -p "Enter Absolute Path to Certificate (.crt/.pem): " SSL_CERT </dev/tty
                     if [ -f "$SSL_CERT" ]; then
                         break
                     else
@@ -129,7 +129,7 @@ prompt_ssl() {
                     fi
                 done
                 while true; do
-                    read -p "Enter Absolute Path to Private Key (.key): " SSL_KEY
+                    read -p "Enter Absolute Path to Private Key (.key): " SSL_KEY </dev/tty
                     if [ -f "$SSL_KEY" ]; then
                         break
                     else
@@ -144,7 +144,7 @@ prompt_ssl() {
 }
 
 prompt_branding() {
-    read -p "Enter Brand Name [NeoCheck]: " BRAND_NAME
+    read -p "Enter Brand Name [NeoCheck]: " BRAND_NAME </dev/tty
     BRAND_NAME=${BRAND_NAME:-NeoCheck}
 }
 

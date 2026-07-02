@@ -350,7 +350,37 @@ action_install() {
 }
 
 action_update() {
-    log_info "Update functionality is handled by reinstalling via Option 1."
+    check_root
+    log_info "Checking current installation..."
+    if [ ! -d "$INSTALL_DIR" ] || [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
+        log_error "NeoCheck installation not found in $INSTALL_DIR. Please run installation first."
+    fi
+
+    log_info "Starting update process..."
+    
+    # 1. Update source code if present
+    if [ -d "$INSTALL_DIR/src/.git" ]; then
+        log_info "Updating source code repository..."
+        cd "$INSTALL_DIR/src"
+        git pull || log_warn "Failed to pull latest git changes. Proceeding anyway."
+    fi
+    
+    # 2. Pull latest docker images and restart
+    cd "$INSTALL_DIR"
+    log_info "Pulling latest Docker images..."
+    if docker compose version &> /dev/null; then
+        docker compose pull
+        docker compose up -d --remove-orphans
+    else
+        docker-compose pull
+        docker-compose up -d --remove-orphans
+    fi
+
+    # 3. Clean up unused old docker images to free up space
+    log_info "Pruning unused Docker images..."
+    docker image prune -f || true
+    
+    log_success "NeoCheck has been successfully updated to the latest version!"
 }
 
 action_uninstall() {
@@ -385,18 +415,20 @@ show_menu() {
     echo -e "${CYAN}======================================${NC}"
     echo -e "${GREEN}      NeoCheck Setup & Manager      ${NC}"
     echo -e "${CYAN}======================================${NC}"
-    echo -e "1) Install / Update NeoCheck"
-    echo -e "2) Uninstall NeoCheck"
-    echo -e "3) Exit"
+    echo -e "1) Install NeoCheck"
+    echo -e "2) Update NeoCheck"
+    echo -e "3) Uninstall NeoCheck"
+    echo -e "4) Exit"
     echo -e "${CYAN}======================================${NC}"
     
     while true; do
-        read -p "Select an option [1-3]: " MENU_CHOICE </dev/tty || true
+        read -p "Select an option [1-4]: " MENU_CHOICE </dev/tty || true
         case $MENU_CHOICE in
             1) action_install; break;;
-            2) action_uninstall; break;;
-            3) log_info "Exiting."; exit 0;;
-            *) echo "Invalid option. Please enter 1, 2, or 3.";;
+            2) action_update; break;;
+            3) action_uninstall; break;;
+            4) log_info "Exiting."; exit 0;;
+            *) echo "Invalid option. Please enter 1, 2, 3, or 4.";;
         esac
     done
 }
@@ -407,7 +439,7 @@ else
     COMMAND=$1
     case "$COMMAND" in
         install) action_install ;;
-        update) action_install ;;
+        update) action_update ;;
         uninstall) action_uninstall ;;
         repair) action_install ;;
         *) log_error "Unknown command: $COMMAND. Valid commands: install, update, uninstall, repair." ;;

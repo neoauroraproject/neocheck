@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -116,6 +118,19 @@ func main() {
 
 	backupsAPI := admin.NewBackupsAPI(logger)
 	backupsAPI.RegisterRoutes(protectedAdmin)
+
+	// Reverse Proxy for Next.js Frontend
+	// Any route not handled by /api goes to the frontend container
+	r.NoRoute(func(c *gin.Context) {
+		// The Next.js frontend is on port 3000 in the docker network
+		targetURL, _ := url.Parse("http://frontend:3000")
+		proxy := httputil.NewSingleHostReverseProxy(targetURL)
+		
+		// Let the proxy know the real IP so Next.js can have it (though Next.js doesn't need it)
+		c.Request.Header.Set("X-Forwarded-For", c.ClientIP())
+		
+		proxy.ServeHTTP(c.Writer, c.Request)
+	})
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	logger.Info("Starting server", zap.String("addr", addr))

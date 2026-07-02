@@ -5,6 +5,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
     volumes:
       - ./neocheck-data/config:/opt/neocheck/config
       - ./neocheck-data/database:/opt/neocheck/database
@@ -20,8 +22,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
     restart: unless-stopped
     depends_on:
       - backend

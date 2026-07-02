@@ -259,7 +259,7 @@ services:
   backend:
     image: ghcr.io/neoauroraproject/neocheck-backend:latest
     ports:
-      - "$SERVER_PORT:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./config:/opt/neocheck/config
       - ./database:/opt/neocheck/database
@@ -274,7 +274,7 @@ services:
   frontend:
     image: ghcr.io/neoauroraproject/neocheck-frontend:latest
     ports:
-      - "3000:3000"
+      - "$SERVER_PORT:3000"
     restart: unless-stopped
     depends_on:
       - backend

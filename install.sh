@@ -77,7 +77,7 @@ prompt_port() {
         SERVER_PORT=${SERVER_PORT:-8080}
         
         # Check if port is in use
-        if ss -tuln | grep -q ":$SERVER_PORT "; then
+        if ss -tuln | grep -q ":$SERVER_PORT\b"; then
             log_warn "Port $SERVER_PORT is currently in use. Please select another port."
         else
             break

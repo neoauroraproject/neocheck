@@ -25,7 +25,7 @@
 Deploy NeoCheck on your server in seconds. The installer handles Docker, configurations, and startup automatically.
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/neoauroraproject/neocheck/master/install.sh)
+curl -fsSL https://raw.githubusercontent.com/neoauroraproject/neocheck/master/install.sh | sudo bash
 ```
 
 ### 🔒 SSL & Custom Branding
@@ -60,7 +60,7 @@ Manage your instance directly from the installation directory (`/opt/neocheck`):
 نئوچک را در چند ثانیه روی سرور خود نصب کنید. این اسکریپت تمام مراحل نصب داکر، تنظیمات و اجرای اولیه را به صورت خودکار انجام می‌دهد.
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/neoauroraproject/neocheck/master/install.sh)
+curl -fsSL https://raw.githubusercontent.com/neoauroraproject/neocheck/master/install.sh | sudo bash
 ```
 
 ### 🔒 تنظیمات SSL و شخصی‌سازی برند

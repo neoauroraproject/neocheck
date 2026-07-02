@@ -37,17 +37,25 @@ type ConnectionReport struct {
 	UserAgent      string `json:"user_agent"`
 
 	// Connection Security
-	HTTPS        bool   `json:"https"`
-	HTTPVersion  string `json:"http_version"`
-	TLSVersion   string `json:"tls_version"`
+	HTTPS          bool   `json:"https"`
+	HTTPVersion    string `json:"http_version"`
+	TLSVersion     string `json:"tls_version"`
+	CipherSuite    string `json:"cipher_suite"`
+	ALPN           string `json:"alpn"`
+	HSTS           bool   `json:"hsts"`
+	OCSPStapling   bool   `json:"ocsp_stapling"`
+	CertIssuer     string `json:"cert_issuer"`
+	CertExpiration string `json:"cert_expiration"`
+	PFS            bool   `json:"pfs"`
+	SecureContext  bool   `json:"secure_context"`
 
 	// Leaks & Advanced Detection
-	WebRTC       bool   `json:"webrtc"`
-	WebRTCLeak   string `json:"webrtc_leak"` // "Safe", "Leak", "Unknown"
-	DNSLeak      string `json:"dns_leak"`    // "Safe", "Leak", "Unknown"
+	WebRTC     bool   `json:"webrtc"`
+	WebRTCLeak string `json:"webrtc_leak"` // "Safe", "Leak", "Unknown"
+	DNSLeak    string `json:"dns_leak"`    // "Safe", "Leak", "Unknown"
 
 	// Fraud & Risk Flags
-	RiskScore    int    `json:"risk_score"`  // 0-100 aggregated risk
+	RiskScore    int    `json:"risk_score"` // 0-100 aggregated risk
 	Hosting      bool   `json:"hosting"`
 	VPN          bool   `json:"vpn"`
 	Proxy        bool   `json:"proxy"`
@@ -56,15 +64,19 @@ type ConnectionReport struct {
 	Mobile       bool   `json:"mobile"`
 	Residential  bool   `json:"residential"`
 	Datacenter   bool   `json:"datacenter"`
+	ASNType      string `json:"asn_type"`
+	CGNAT        bool   `json:"cgnat"`
+	CarrierClass string `json:"carrier_class"`
 
 	// External Services Availability Check
-	Services     map[string]bool `json:"services"` // e.g., {"netflix": false, "bbc": true}
+	Services map[string]bool `json:"services"` // e.g., {"netflix": false, "bbc": true}
 
 	// Output Meta
-	Summary      string    `json:"summary"`
-	Score        int       `json:"score"`      // 0-100 overall health score
-	Status       string    `json:"status"`     // "Excellent", "Good", "Warning", "Poor"
-	Timestamp    time.Time `json:"timestamp"`
+	Summary        string         `json:"summary"`
+	Score          int            `json:"score"` // 0-100 overall health score
+	ScoreBreakdown ScoreBreakdown `json:"score_breakdown"`
+	Status         string         `json:"status"` // "Excellent", "Good", "Warning", "Poor"
+	Timestamp      time.Time      `json:"timestamp"`
 }
 
 // Request represents the incoming detection parameters extracted from the HTTP request.

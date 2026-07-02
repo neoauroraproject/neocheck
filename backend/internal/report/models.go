@@ -17,15 +17,18 @@ type GeoResult struct {
 
 // FraudResult is returned by fraud checking plugins
 type FraudResult struct {
-	RiskScore   int  `json:"risk_score"`
-	Hosting     bool `json:"hosting"`
-	VPN         bool `json:"vpn"`
-	Proxy       bool `json:"proxy"`
-	Tor         bool `json:"tor"`
-	Anonymous   bool `json:"anonymous"`
-	Mobile      bool `json:"mobile"`
-	Residential bool `json:"residential"`
-	Datacenter  bool `json:"datacenter"`
+	RiskScore    int    `json:"risk_score"`
+	Hosting      bool   `json:"hosting"`
+	VPN          bool   `json:"vpn"`
+	Proxy        bool   `json:"proxy"`
+	Tor          bool   `json:"tor"`
+	Anonymous    bool   `json:"anonymous"`
+	Mobile       bool   `json:"mobile"`
+	Residential  bool   `json:"residential"`
+	Datacenter   bool   `json:"datacenter"`
+	ASNType      string `json:"asn_type"`
+	CGNAT        bool   `json:"cgnat"`
+	CarrierClass string `json:"carrier_class"`
 }
 
 // BrowserResult is returned by the browser parsing plugin
@@ -49,9 +52,17 @@ type NetworkResult struct {
 
 // SecurityResult holds protocol level security details
 type SecurityResult struct {
-	HTTPS       bool   `json:"https"`
-	HTTPVersion string `json:"http_version"`
-	TLSVersion  string `json:"tls_version"`
+	HTTPS          bool   `json:"https"`
+	HTTPVersion    string `json:"http_version"`
+	TLSVersion     string `json:"tls_version"`
+	CipherSuite    string `json:"cipher_suite"`
+	ALPN           string `json:"alpn"`
+	HSTS           bool   `json:"hsts"`
+	OCSPStapling   bool   `json:"ocsp_stapling"`
+	CertIssuer     string `json:"cert_issuer"`
+	CertExpiration string `json:"cert_expiration"`
+	PFS            bool   `json:"pfs"`
+	SecureContext  bool   `json:"secure_context"`
 }
 
 // DNSResult is returned by the DNS leak plugin
@@ -68,4 +79,15 @@ type WebRTCResult struct {
 // ServicesResult is returned by the service availability checker
 type ServicesResult struct {
 	Status map[string]bool `json:"status"`
+}
+
+// ScoreBreakdown represents 0-100 scores for each category
+type ScoreBreakdown struct {
+	DNS        int `json:"dns"`
+	WebRTC     int `json:"webrtc"`
+	Privacy    int `json:"privacy"`
+	Reputation int `json:"reputation"`
+	Streaming  int `json:"streaming"`
+	AI         int `json:"ai"`
+	Security   int `json:"security"`
 }

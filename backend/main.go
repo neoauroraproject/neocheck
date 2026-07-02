@@ -20,6 +20,9 @@ import (
 	"neocheck-backend/internal/engine/plugin"
 	"neocheck-backend/internal/plugins/abuseipdb"
 	"neocheck-backend/internal/plugins/geo"
+	"neocheck-backend/internal/plugins/browser"
+	"neocheck-backend/internal/plugins/security"
+	"neocheck-backend/internal/plugins/ipqualityscore"
 )
 
 func main() {
@@ -57,6 +60,9 @@ func main() {
 	// 3. Register Plugins
 	plugin.Register(geo.New())
 	plugin.Register(abuseipdb.New())
+	plugin.Register(browser.New())
+	plugin.Register(security.New())
+	plugin.Register(ipqualityscore.New())
 
 	// 4. Initialize Detection Engine
 	detectionHandler, err := detection.NewHandler(cfg)

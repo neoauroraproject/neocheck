@@ -6,9 +6,9 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: process.env.NODE_ENV === 'production' 
-          ? 'http://backend:8080/api/:path*' 
-          : 'http://localhost:8080/api/:path*',
+        destination: process.env.NODE_ENV === 'development'
+          ? 'http://localhost:8080/api/:path*'
+          : (process.env.BACKEND_URL || 'http://backend:8080/api/:path*'),
       },
     ];
   },

@@ -202,6 +202,17 @@ func (a *Aggregator) generateSummaryAndStatus(rep *report.ConnectionReport) {
 	}
 
 	// 2. Calculate Score Breakdown
+	networkScore := 100
+	if rep.Tor {
+		networkScore = 20
+	} else if rep.Proxy {
+		networkScore = 50
+	} else if rep.Hosting || rep.Datacenter {
+		networkScore = 80 // Datacenter VPN node
+	} else if rep.VPN {
+		networkScore = 95 // Residential VPN
+	}
+
 	dnsScore := 100
 	if rep.DNSLeak == "Leak" {
 		dnsScore = 0
@@ -211,54 +222,12 @@ func (a *Aggregator) generateSummaryAndStatus(rep *report.ConnectionReport) {
 	if rep.WebRTCLeak == "Leak" {
 		webrtcScore = 0
 	} else if rep.WebRTCLeak == "Partial" {
-		webrtcScore = 50
+		webrtcScore = 70 // Minimal penalty for local candidate
 	}
 
-	privacyScore := 100
-	if rep.VPN {
-		privacyScore -= 35
-	}
-	if rep.Proxy {
-		privacyScore -= 35
-	}
-	if rep.Tor {
-		privacyScore -= 50
-	}
-	if rep.Hosting || rep.Datacenter {
-		privacyScore -= 15
-	}
-	if privacyScore < 0 {
-		privacyScore = 0
-	}
-
-	reputationScore := 100 - rep.RiskScore
-	if reputationScore < 0 {
-		reputationScore = 0
-	}
-
-	streamingScore := 100
-	if rep.VPN || rep.Proxy {
-		streamingScore -= 50
-	}
-	if rep.Tor {
-		streamingScore -= 80
-	}
-	if rep.Hosting {
-		streamingScore -= 30
-	}
-	if streamingScore < 0 {
-		streamingScore = 0
-	}
-
-	aiScore := 100
-	if rep.VPN || rep.Proxy {
-		aiScore -= 30
-	}
-	if rep.Tor {
-		aiScore -= 60
-	}
-	if aiScore < 0 {
-		aiScore = 0
+	fingerprintScore := 100 // Refined client-side, default to 100
+	if rep.HTTPVersion == "HTTP/1.1" {
+		fingerprintScore -= 5 // Older browser protocols
 	}
 
 	securityScore := 0
@@ -286,26 +255,41 @@ func (a *Aggregator) generateSummaryAndStatus(rep *report.ConnectionReport) {
 		securityScore = 100
 	}
 
+	reputationScore := 100 - rep.RiskScore
+	if reputationScore < 0 {
+		reputationScore = 0
+	}
+
+	compatibilityScore := 100
+	if rep.Tor {
+		compatibilityScore = 20
+	} else if rep.Proxy {
+		compatibilityScore = 50
+	} else if rep.Hosting || rep.Datacenter {
+		compatibilityScore = 70
+	} else if rep.VPN {
+		compatibilityScore = 85
+	}
+
 	breakdown := report.ScoreBreakdown{
-		DNS:        dnsScore,
-		WebRTC:     webrtcScore,
-		Privacy:    privacyScore,
-		Reputation: reputationScore,
-		Streaming:  streamingScore,
-		AI:         aiScore,
-		Security:   securityScore,
+		Network:       networkScore,
+		DNS:           dnsScore,
+		WebRTC:        webrtcScore,
+		Fingerprint:   fingerprintScore,
+		Security:      securityScore,
+		Reputation:    reputationScore,
+		Compatibility: compatibilityScore,
 	}
 	rep.ScoreBreakdown = breakdown
 
-	// 3. Overall Weighted Score
-	// Reputation: 20%, Privacy: 20%, Security: 15%, DNS: 15%, WebRTC: 10%, Streaming: 10%, AI: 10%
-	weightedScore := float64(reputationScore)*0.20 +
-		float64(privacyScore)*0.20 +
+	// 3. Overall Weighted Score (fair and realistic average)
+	weightedScore := float64(networkScore)*0.15 +
+		float64(dnsScore)*0.20 +
+		float64(webrtcScore)*0.15 +
+		float64(fingerprintScore)*0.10 +
 		float64(securityScore)*0.15 +
-		float64(dnsScore)*0.15 +
-		float64(webrtcScore)*0.10 +
-		float64(streamingScore)*0.10 +
-		float64(aiScore)*0.10
+		float64(reputationScore)*0.15 +
+		float64(compatibilityScore)*0.10
 
 	score := int(weightedScore)
 	if score < 0 {
@@ -318,17 +302,17 @@ func (a *Aggregator) generateSummaryAndStatus(rep *report.ConnectionReport) {
 
 	// 4. Summaries & Status
 	if score >= 90 {
-		rep.Status = "Excellent"
-		rep.Summary = "Connection appears highly secure, clean, and residential."
+		rep.Status = "Protected"
+		rep.Summary = "Your digital identity is well protected. Minor leaks or tracking vectors."
 	} else if score >= 75 {
-		rep.Status = "Good"
-		rep.Summary = "Connection is generally safe and usable, with minor anonymization flags."
+		rep.Status = "Minor Exposure"
+		rep.Summary = "Connection is mostly safe but has minor configurations exposed."
 	} else if score >= 50 {
-		rep.Status = "Warning"
-		rep.Summary = "Connection shows active anonymization (VPN/Proxy) or security warnings."
+		rep.Status = "Medium Exposure"
+		rep.Summary = "Active leaks or browser tracking points have been detected."
 	} else {
-		rep.Status = "Poor"
-		rep.Summary = "Connection is highly suspicious, heavily anonymized, or insecure."
+		rep.Status = "High Exposure"
+		rep.Summary = "Critical DNS/WebRTC leaks or unsecured network routes detected."
 	}
 }
 

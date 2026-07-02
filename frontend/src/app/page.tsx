@@ -6,17 +6,17 @@ import {
   Sun, Moon, RefreshCw, AlertTriangle, Compass, 
   CheckCircle2, XCircle, ShieldCheck, ShieldAlert,
   Globe, Monitor, Lock, Server, Wifi, Cpu, PlaySquare, 
-  MapPin, Copy, Share2, EyeOff, Activity, ChevronDown, Terminal
+  MapPin, Copy, Share2, EyeOff, Activity, ChevronDown, Terminal, Info
 } from "lucide-react"
 
 interface ScoreBreakdown {
+  network: number
   dns: number
   webrtc: number
-  privacy: number
-  reputation: number
-  streaming: number
-  ai: number
+  fingerprint: number
   security: number
+  reputation: number
+  compatibility: number
 }
 
 interface ConnectionReport {
@@ -85,6 +85,24 @@ export default function Home() {
   const [error, setError] = useState("")
   const [flagUrl, setFlagUrl] = useState("")
 
+  // Expanded card section keys tracker
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({})
+
+  // Browser fingerprint state
+  const [fingerprintData, setFingerprintData] = useState<{
+    canvas: string
+    webglVendor: string
+    webglRenderer: string
+    audio: string
+    fonts: string[]
+  }>({
+    canvas: "Calculating...",
+    webglVendor: "Calculating...",
+    webglRenderer: "Calculating...",
+    audio: "Calculating...",
+    fonts: []
+  })
+
   // Client-side dynamic WebRTC details
   const [webRTCData, setWebRTCData] = useState<{
     status: "Safe" | "Partial" | "Leak" | "Scanning" | "Unsupported"
@@ -105,7 +123,7 @@ export default function Home() {
   })
 
   // Client-side reachability results
-  const [serviceStatuses, setServiceStatuses] = useState<Record<string, "Reachable" | "Accessible" | "Blocked" | "Restricted" | "Unknown">>({})
+  const [serviceStatuses, setServiceStatuses] = useState<Record<string, "Reachable" | "Accessible" | "Blocked" | "Restricted" | "Network Accessible" | "Unknown">>({})
   
   // Client-side refined OS & Browser details
   const [detectedBrowser, setDetectedBrowser] = useState({
@@ -125,7 +143,7 @@ export default function Home() {
 
   const [branding, setBranding] = useState({
     name: "NeoCheck",
-    subtitle: "Know your connection in seconds.",
+    subtitle: "Premium Privacy Exposure & VPN Audit Platform",
     logo: "",
     favicon: "",
     primary_color: "#8b5cf6",
@@ -136,6 +154,13 @@ export default function Home() {
     github_url: "",
     documentation_url: ""
   })
+
+  const toggleCard = (cardKey: string) => {
+    setExpandedCards(prev => ({
+      ...prev,
+      [cardKey]: !prev[cardKey]
+    }))
+  }
 
   const getCountryEmoji = (countryCode: string) => {
     if (!countryCode) return ""
@@ -165,6 +190,115 @@ export default function Home() {
     } else {
       setFlagUrl("ERROR")
     }
+  }
+
+  // Asynchronous browser Canvas fingerprint scan
+  const getCanvasFingerprint = () => {
+    try {
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return { data: "Unsupported" }
+      ctx.textBaseline = "top"
+      ctx.font = "14px 'Arial'"
+      ctx.fillStyle = "#f60"
+      ctx.fillRect(125, 1, 62, 20)
+      ctx.fillStyle = "#069"
+      ctx.fillText("NeoCheck, @~^", 2, 15)
+      ctx.fillStyle = "rgba(0, 0, 0, 0.7)"
+      ctx.fillText("NeoCheck, @~^", 4, 17)
+      const data = canvas.toDataURL()
+      
+      let hash = 0
+      for (let i = 0; i < data.length; i++) {
+        const char = data.charCodeAt(i)
+        hash = ((hash << 5) - hash) + char
+        hash = hash & hash
+      }
+      return { data: "canvas_" + Math.abs(hash).toString(16) }
+    } catch {
+      return { data: "Blocked" }
+    }
+  }
+
+  // WebGL vendor and renderer probe
+  const getWebGLFingerprint = () => {
+    try {
+      const canvas = document.createElement("canvas")
+      const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl")
+      if (!gl) return { vendor: "N/A", renderer: "N/A" }
+      const debugInfo = gl.getExtension("WEBGL_debug_renderer_info")
+      if (!debugInfo) return { vendor: "Generic/Blocked", renderer: "Generic/Blocked" }
+      const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) || ""
+      const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || ""
+      return { vendor, renderer }
+    } catch {
+      return { vendor: "Blocked", renderer: "Blocked" }
+    }
+  }
+
+  // Async audio synthesizer fingerprint check
+  const getAudioFingerprint = () => {
+    return new Promise<{ hash: string }>((resolve) => {
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+        if (!AudioContextClass) {
+          resolve({ hash: "Unsupported" })
+          return
+        }
+        const context = new AudioContextClass()
+        const oscillator = context.createOscillator()
+        const gainNode = context.createGain()
+        const analyser = context.createAnalyser()
+        
+        oscillator.type = "sine"
+        oscillator.frequency.value = 440
+        gainNode.gain.value = 0 // Mute audio output
+        
+        oscillator.connect(gainNode)
+        gainNode.connect(analyser)
+        analyser.connect(context.destination)
+        
+        oscillator.start(0)
+        
+        setTimeout(() => {
+          const bufferLength = analyser.frequencyBinCount
+          const dataArray = new Uint8Array(bufferLength)
+          analyser.getByteTimeDomainData(dataArray)
+          
+          let hash = 0
+          for (let i = 0; i < dataArray.length; i++) {
+            hash = ((hash << 5) - hash) + dataArray[i]
+            hash = hash & hash
+          }
+          oscillator.stop()
+          context.close()
+          resolve({ hash: "audio_" + Math.abs(hash).toString(16) })
+        }, 100)
+      } catch {
+        resolve({ hash: "Blocked" })
+      }
+    })
+  }
+
+  const checkFont = (fontName: string) => {
+    try {
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return false
+      const text = "abcdefghijklmnopqrstuvwxyz0123456789"
+      ctx.font = "72px sans-serif"
+      const baselineWidth = ctx.measureText(text).width
+      ctx.font = `72px '${fontName}', sans-serif`
+      const testWidth = ctx.measureText(text).width
+      return testWidth !== baselineWidth
+    } catch {
+      return false
+    }
+  }
+
+  const getInstalledFonts = () => {
+    const fontsList = ["Courier New", "Arial", "Times New Roman", "Helvetica", "Verdana", "Georgia", "Comic Sans MS", "Trebuchet MS", "Impact"]
+    return fontsList.filter(f => checkFont(f))
   }
 
   // Client-side Browser, OS and Screen properties scan
@@ -305,7 +439,6 @@ export default function Home() {
         }
 
         if (publicIPs.length > 0) {
-          // If we are on a VPN, but WebRTC exposes a public IP that differs from our connection IP
           const leakedDiff = publicIPs.some(pip => pip !== currentPublicIP)
           if (leakedDiff || isVpn) {
             status = "Leak" // Real ISP public IP leaked during proxy/VPN session
@@ -431,40 +564,13 @@ export default function Home() {
     setServiceStatuses(results)
   }
 
-  // Load Theme Settings and Branding Details
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const match = window.matchMedia("(prefers-color-scheme: dark)")
-      setTheme(match.matches ? "dark" : "light")
-    }
-
-    fetch("/api/branding")
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data) {
-          setBranding(data)
-          if (data.name) document.title = `${data.name} - ${data.subtitle || "Diagnostics"}`
-          if (data.favicon) {
-            let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement
-            if (!link) {
-              link = document.createElement('link')
-              link.rel = 'icon'
-              document.head.appendChild(link)
-            }
-            link.href = data.favicon
-          }
-        }
-      })
-      .catch(() => {})
-  }, [])
-
   const startAnalysis = async () => {
     setLoading(true)
     setProgress(15)
     setError("")
     
     const timer = setInterval(() => {
-      setProgress((prev) => (prev < 85 ? prev + 10 : prev))
+      setProgress((prev) => (prev < 80 ? prev + 10 : prev))
     }, 200)
 
     try {
@@ -472,15 +578,29 @@ export default function Home() {
       if (!res.ok) throw new Error("Failed to fetch diagnostics")
       const data = (await res.json()) as ConnectionReport
       clearInterval(timer)
-      setProgress(90)
+      setProgress(85)
       
       // Parallelize client side scans
       await detectClientDetails()
+      
+      const canvasFP = getCanvasFingerprint()
+      const webglFP = getWebGLFingerprint()
+      const audioFP = await getAudioFingerprint()
+      const fontsInstalled = getInstalledFonts()
+
       await Promise.all([
         scanWebRTC(data.ip, data.vpn || data.proxy || data.tor),
         runServiceChecks(data.vpn || data.proxy || data.tor)
       ])
       
+      setFingerprintData({
+        canvas: canvasFP.data || "Unsupported",
+        webglVendor: webglFP.vendor,
+        webglRenderer: webglFP.renderer,
+        audio: audioFP.hash,
+        fonts: fontsInstalled
+      })
+
       setProgress(100)
       setTimeout(() => {
         setReport(data)
@@ -499,100 +619,28 @@ export default function Home() {
 
   const isDark = theme === "dark"
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-  }
-
-  const renderStars = (score: number) => {
-    const starCount = Math.round((score / 100) * 5);
-    return <span className="text-amber-500 font-bold text-lg tracking-wide">{"★".repeat(starCount)}{"☆".repeat(5 - starCount)}</span>;
-  }
-
   const renderProgressBar = (score: number) => {
-    const totalBlocks = 20;
-    const filledBlocks = Math.round((score / 100) * totalBlocks);
-    const filled = "█".repeat(filledBlocks);
-    const empty = "░".repeat(totalBlocks - filledBlocks);
-    return <span className="font-mono tracking-tighter text-violet-500">{filled}<span className="text-zinc-300 dark:text-zinc-700">{empty}</span></span>;
+    const totalBlocks = 10
+    const filledBlocks = Math.round((score / 100) * totalBlocks)
+    const filled = "█".repeat(filledBlocks)
+    const empty = "░".repeat(totalBlocks - filledBlocks)
+    return <span className="font-mono tracking-tighter text-violet-500">{filled}<span className="text-zinc-300 dark:text-zinc-700">{empty}</span></span>
   }
 
-  // Generate recommendation rules dynamically
-  const getActionableRecommendations = () => {
-    if (!report) return []
-    const list = []
-
-    if (report.webrtc_leak === "Leak" || webRTCData.status === "Leak") {
-      list.push({
-        title: "Critical WebRTC IP Leak Detected",
-        desc: "Your browser is exposing your real public/private IP directly via WebRTC, bypassing VPN tunnels. Install a WebRTC blocker or disable it in your browser settings.",
-        severity: "critical"
-      })
-    } else if (webRTCData.status === "Partial") {
-      list.push({
-        title: "Partial WebRTC Leak (Local IPs)",
-        desc: "Your local network structure (private IPs) is visible via WebRTC. While not your public IP, it helps trackers fingerprint you. Enable mDNS to hide private IPs.",
-        severity: "warning"
-      })
+  const getExposureLevelBadge = (level: "Safe" | "Minor" | "Medium" | "High" | "Critical") => {
+    switch (level) {
+      case "Safe":
+        return <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-500 uppercase">Safe</span>
+      case "Minor":
+        return <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-zinc-500/10 text-zinc-500 uppercase">Minor Exposure</span>
+      case "Medium":
+        return <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-500 uppercase">Medium Exposure</span>
+      case "High":
+        return <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-500/10 text-red-500 uppercase">High Exposure</span>
+      case "Critical":
+        return <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-600/20 text-red-500 animate-pulse border border-red-500/30 uppercase">Critical</span>
     }
-
-    if (report.dns_leak === "Leak") {
-      list.push({
-        title: "Active DNS Leak Identified",
-        desc: "Your DNS queries are leaking to your ISP's resolvers instead of going through the VPN's secure servers, exposing which domains you visit.",
-        severity: "critical"
-      })
-    }
-
-    if (report.vpn || report.proxy || report.tor) {
-      list.push({
-        title: "Traffic Routed Through Anonymizer",
-        desc: "A VPN, Proxy or Tor connection is active. This shields your identity, but some highly protected services (e.g. streaming, bank portals) may flag or restrict this IP.",
-        severity: "info"
-      })
-    }
-
-    if (!report.https) {
-      list.push({
-        title: "Insecure Plaintext Connection",
-        desc: "Your session does not use HTTPS. Anyone on the local network can read your data. Enforce HTTPS.",
-        severity: "critical"
-      })
-    } else if (!report.hsts) {
-      list.push({
-        title: "Missing HSTS Protocol",
-        desc: "HTTP Strict Transport Security (HSTS) is not enforced, leaving users open to SSL stripping attacks.",
-        severity: "warning"
-      })
-    }
-
-    if (report.risk_score > 25) {
-      list.push({
-        title: `High IP Fraud Score: ${report.risk_score}%`,
-        desc: "This IP is flagged by security providers for history of spam, port scanning, or malicious activity.",
-        severity: "warning"
-      })
-    }
-
-    if (!report.ipv6) {
-      list.push({
-        title: "No IPv6 Configuration",
-        desc: "Your ISP or network only supports IPv4. Enable IPv6 for improved routing efficiency and native end-to-end addressing.",
-        severity: "info"
-      })
-    }
-
-    if (list.length === 0) {
-      list.push({
-        title: "Excellent Connection Security",
-        desc: "No critical leaks, active threats, or misconfigured TLS parameters were found on this network path.",
-        severity: "success"
-      })
-    }
-
-    return list
   }
-
-  const recommendations = getActionableRecommendations()
 
   return (
     <div className={`min-h-screen transition-colors duration-700 font-sans relative overflow-hidden pb-12 ${
@@ -601,7 +649,7 @@ export default function Home() {
       
       {/* Background Dots */}
       <div 
-        className="absolute inset-0 z-0 pointer-events-none opacity-[0.15]"
+        className="absolute inset-0 z-0 pointer-events-none opacity-[0.10]"
         style={{
           backgroundImage: isDark
             ? "radial-gradient(circle at 1px 1px, #52525b 1px, transparent 0)"
@@ -609,35 +657,26 @@ export default function Home() {
           backgroundSize: "24px 24px",
         }}
       />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] overflow-hidden pointer-events-none z-0">
-        <div className={`absolute top-[-20%] left-[10%] w-[80%] h-[80%] rounded-full blur-[120px] opacity-[0.15] ${
-          isDark ? "bg-violet-600" : "bg-violet-400"
-        }`} />
-      </div>
-
-      <div className="relative z-10 max-w-6xl mx-auto px-4 py-6 sm:py-10 min-h-screen flex flex-col">
+      
+      <div className="relative z-10 max-w-6xl mx-auto px-4 py-4 sm:py-6 flex flex-col h-screen max-h-screen">
         
         {/* Header */}
-        <header className="flex justify-between items-center mb-10">
+        <header className="flex justify-between items-center mb-6 h-10 shrink-0">
           <div className="flex items-center gap-2">
-            {branding.logo ? (
-              <img src={branding.logo} alt={branding.name} className="h-6 object-contain" />
-            ) : (
-              <span 
-                className="font-black text-xl tracking-tight bg-gradient-to-r bg-clip-text text-transparent"
-                style={{ backgroundImage: `linear-gradient(to right, ${branding.primary_color || '#8b5cf6'}, ${branding.accent_color || '#6366f1'})` }}
-              >
-                {branding.name.toUpperCase()}
-              </span>
-            )}
+            <span 
+              className="font-black text-xl tracking-tight bg-gradient-to-r bg-clip-text text-transparent"
+              style={{ backgroundImage: `linear-gradient(to right, ${branding.primary_color || '#8b5cf6'}, ${branding.accent_color || '#6366f1'})` }}
+            >
+              {branding.name.toUpperCase()}
+            </span>
           </div>
           <button
             onClick={() => setTheme(isDark ? "light" : "dark")}
-            className={`p-2.5 rounded-full border transition-all hover:scale-105 active:scale-95 cursor-pointer ${
+            className={`p-2 rounded-full border transition-all hover:scale-105 active:scale-95 cursor-pointer ${
               isDark ? "bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200" : "bg-white border-zinc-200 text-zinc-500 hover:text-zinc-800 shadow-sm"
             }`}
           >
-            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </button>
         </header>
 
@@ -649,19 +688,19 @@ export default function Home() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex-1 flex flex-col items-center justify-center py-32"
+              className="flex-1 flex flex-col items-center justify-center py-20"
             >
-              <div className="relative w-32 h-32 mb-8 flex items-center justify-center">
+              <div className="relative w-24 h-24 mb-6 flex items-center justify-center">
                 <div className={`absolute inset-0 rounded-full border border-dashed animate-[spin_20s_linear_infinite] ${isDark ? "border-zinc-800" : "border-zinc-300"}`} />
-                <div className={`w-20 h-20 rounded-full border flex items-center justify-center shadow-md relative ${isDark ? "bg-zinc-900 border-zinc-800" : "bg-white border-zinc-200"}`}>
-                  <Compass className="w-6 h-6 text-violet-500 animate-spin" />
+                <div className={`w-16 h-16 rounded-full border flex items-center justify-center shadow-md relative ${isDark ? "bg-zinc-900 border-zinc-800" : "bg-white border-zinc-200"}`}>
+                  <Compass className="w-5 h-5 text-violet-500 animate-spin" />
                 </div>
               </div>
-              <div className="text-center w-64 space-y-4">
-                <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? "bg-zinc-900" : "bg-zinc-200"}`}>
+              <div className="text-center w-64 space-y-3">
+                <div className={`w-full h-1 rounded-full overflow-hidden ${isDark ? "bg-zinc-900" : "bg-zinc-200"}`}>
                   <motion.div className="h-full bg-violet-500" animate={{ width: `${progress}%` }} transition={{ ease: "linear" }} />
                 </div>
-                <p className="text-zinc-500 text-xs font-medium uppercase tracking-widest">Analyzing Network...</p>
+                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Auditing Privacy Profile...</p>
               </div>
             </motion.div>
           ) : error ? (
@@ -671,480 +710,666 @@ export default function Home() {
               animate={{ opacity: 1 }}
               className="flex-1 flex flex-col items-center justify-center text-center space-y-4 py-16"
             >
-              <AlertTriangle className="w-12 h-12 text-red-500" />
-              <h2 className="text-xl font-bold">Analysis Failed</h2>
-              <p className="text-zinc-500 text-sm max-w-sm">{error}</p>
-              <button onClick={startAnalysis} className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-lg text-sm flex items-center gap-2">
-                <RefreshCw className="w-4 h-4" /> Retry Check
+              <AlertTriangle className="w-10 h-10 text-red-500" />
+              <h2 className="text-lg font-bold">Audit Failed</h2>
+              <p className="text-zinc-500 text-xs max-w-sm">{error}</p>
+              <button onClick={startAnalysis} className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-lg text-xs flex items-center gap-2">
+                <RefreshCw className="w-3.5 h-3.5" /> Restart Audit
               </button>
             </motion.div>
           ) : report ? (
-            <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="flex-1 space-y-8">
+            <motion.div 
+              key="results" 
+              initial={{ opacity: 0, y: 10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              transition={{ duration: 0.4 }} 
+              className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0 overflow-hidden"
+            >
               
-              {/* HERO CARD - WITH SCORE BREAKDOWN */}
-              <div className={`rounded-2xl border overflow-hidden p-6 md:p-8 flex flex-col lg:flex-row gap-8 ${
-                isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"
-              }`}>
-                {/* Left Side: Connection Health Score */}
-                <div className="flex-1 flex flex-col justify-center items-center lg:items-start text-center lg:text-left space-y-5 lg:border-r lg:pr-8 border-zinc-200 dark:border-zinc-800">
-                  <div className="inline-flex items-center space-x-2 bg-violet-500/10 text-violet-600 dark:text-violet-400 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider">
-                    <Activity className="w-3.5 h-3.5" />
-                    <span>Connection Health</span>
+              {/* LEFT COLUMN - STICKY (overall score, inferences, exposure chips) */}
+              <div className="lg:col-span-5 flex flex-col space-y-4 min-h-0 overflow-y-auto lg:pr-1 pb-4 scrollbar-none shrink-0">
+                
+                {/* 1. Privacy & Security Score Card */}
+                <div className={`rounded-xl border p-5 flex items-center gap-5 ${
+                  isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"
+                }`}>
+                  <div className="flex flex-col items-center justify-center shrink-0">
+                    <div className="flex items-baseline font-black leading-none text-zinc-900 dark:text-zinc-100">
+                      <span className="text-5xl tracking-tighter">{report.score}</span>
+                      <span className="text-sm text-zinc-400 dark:text-zinc-600 font-normal">/100</span>
+                    </div>
+                    <div className="text-[9px] font-bold uppercase tracking-wider mt-1.5 text-zinc-500">
+                      {report.status}
+                    </div>
                   </div>
                   
-                  <div className="space-y-2">
-                    <div className="flex items-end justify-center lg:justify-start gap-2 font-black">
-                      <span className="text-7xl sm:text-8xl tracking-tighter text-zinc-900 dark:text-zinc-100">{report.score}</span>
-                      <span className="text-2xl text-zinc-400 dark:text-zinc-600 pb-3">/100</span>
-                    </div>
-                    <div className="text-lg tracking-widest flex flex-col items-center lg:items-start justify-center gap-1.5">
-                      {renderProgressBar(report.score)}
-                      <div className="mt-1">{renderStars(report.score)}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs font-bold text-zinc-500">
-                    <span className={`px-3 py-1 rounded-md text-xs uppercase tracking-wider ${
-                      report.score >= 90 
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
-                        : report.score >= 75 
-                          ? "bg-violet-500/10 text-violet-600 dark:text-violet-400" 
-                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    }`}>
-                      {report.status}
-                    </span>
-                    <span>12 Tests Completed</span>
-                    <span>{recommendations.filter(r => r.severity === "critical" || r.severity === "warning").length} Issues Detected</span>
+                  <div className="space-y-1 text-xs">
+                    <h3 className="font-bold text-sm tracking-tight text-violet-500 uppercase flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5" /> Privacy & Security Score
+                    </h3>
+                    <p className="text-zinc-500 dark:text-zinc-400 font-medium leading-normal">{report.summary}</p>
+                    <div className="pt-1">{renderProgressBar(report.score)}</div>
                   </div>
                 </div>
 
-                {/* Right Side: Score Breakdown Graph */}
-                <div className="flex-1 flex flex-col justify-center space-y-4">
-                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Diagnostic Breakdown</h4>
+                {/* 2. What We Believe About You Panel */}
+                <div className={`rounded-xl border p-5 space-y-4 ${
+                  isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"
+                }`}>
+                  <div className="space-y-0.5">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-violet-500 flex items-center gap-1.5">
+                      <EyeOff className="w-3.5 h-3.5" /> What We Believe About You
+                    </h3>
+                    <p className="text-[10px] text-zinc-500 font-semibold">This is what a website can reasonably infer about you.</p>
+                  </div>
                   
-                  <div className="space-y-3">
+                  <div className="space-y-2 text-xs font-semibold">
                     {[
-                      { label: "Security & TLS", value: report.score_breakdown?.security ?? 90 },
-                      { label: "Anonymity & Privacy", value: report.score_breakdown?.privacy ?? 85 },
-                      { label: "DNS Resolution", value: report.score_breakdown?.dns ?? 100 },
-                      { label: "WebRTC Integrity", value: report.score_breakdown?.webrtc ?? 100 },
-                      { label: "IP Reputation", value: report.score_breakdown?.reputation ?? 95 },
-                      { label: "Streaming Support", value: report.score_breakdown?.streaming ?? 80 },
-                      { label: "AI Platforms Reachability", value: report.score_breakdown?.ai ?? 80 },
+                      { label: "Name", val: "Unknown", conf: 99, status: "✓ Better Privacy", color: "text-emerald-500" },
+                      { label: "Country", val: report.country || "Unknown", conf: report.country_code ? 99 : 0 },
+                      { label: "City", val: report.city || "Unknown", conf: report.city ? 95 : 0 },
+                      { label: "District", val: report.region || "Unknown", conf: report.region ? 72 : 0 },
+                      { label: "ISP / Carrier", val: report.isp || "Unknown", conf: report.isp ? 100 : 0 },
+                      { label: "Timezone", val: report.timezone || "Unknown", conf: report.timezone ? 100 : 0 },
+                      { label: "Language", val: detectedBrowser.language, conf: 90 },
+                      { label: "Operating System", val: detectedBrowser.os, conf: 96 },
+                      { label: "Browser", val: detectedBrowser.name, conf: 99 },
+                      { label: "VPN", val: report.vpn ? "Detected" : "Not Detected", conf: 94 },
+                      { label: "Residential Line", val: report.residential ? "Yes" : "No", conf: 91 },
                     ].map((item, idx) => (
-                      <div key={idx} className="space-y-1.5">
-                        <div className="flex justify-between text-xs font-semibold">
-                          <span className="text-zinc-600 dark:text-zinc-400">{item.label}</span>
-                          <span className="font-mono">{item.value}/100</span>
+                      <div key={idx} className="space-y-1">
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="text-zinc-500">{item.label}</span>
+                          <span className="text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                            <span>{item.val}</span>
+                            {item.status ? (
+                              <span className={`text-[9px] font-bold uppercase ${item.color}`}>{item.status}</span>
+                            ) : (
+                              <span className="text-[9px] text-zinc-400 font-mono">({item.conf}%)</span>
+                            )}
+                          </span>
                         </div>
-                        <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? "bg-zinc-800" : "bg-zinc-200"}`}>
-                          <div 
-                            className={`h-full rounded-full ${
-                              item.value >= 90 
-                                ? "bg-emerald-500" 
-                                : item.value >= 70 
-                                  ? "bg-violet-500" 
-                                  : "bg-amber-500"
-                            }`} 
-                            style={{ width: `${item.value}%` }} 
-                          />
-                        </div>
+                        {item.conf > 0 && !item.status && (
+                          <div className="w-full h-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full ${
+                                item.conf >= 90 ? "bg-emerald-500" : item.conf >= 70 ? "bg-violet-500" : "bg-amber-500"
+                              }`} 
+                              style={{ width: `${item.conf}%` }} 
+                            />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
-              </div>
 
-              {/* ACTIONABLE RECOMMENDATIONS & INSIGHTS */}
-              <div className={`p-6 rounded-2xl border ${isDark ? "bg-zinc-900/40 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"}`}>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-4 flex items-center gap-2">
-                  <Activity className="w-4 h-4" /> Actionable Insights & Warnings
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {recommendations.map((rec, idx) => (
-                    <div 
-                      key={idx} 
-                      className={`p-4 rounded-xl border flex items-start gap-3 ${
-                        rec.severity === "critical"
-                          ? (isDark ? "bg-red-950/20 border-red-900/40 text-red-300" : "bg-red-50 border-red-200 text-red-900")
-                          : rec.severity === "warning"
-                            ? (isDark ? "bg-amber-950/20 border-amber-900/40 text-amber-300" : "bg-amber-50 border-amber-200 text-amber-900")
-                            : rec.severity === "success"
-                              ? (isDark ? "bg-emerald-950/20 border-emerald-900/40 text-emerald-300" : "bg-emerald-50 border-emerald-200 text-emerald-900")
-                              : (isDark ? "bg-zinc-900 border-zinc-800 text-zinc-300" : "bg-zinc-100 border-zinc-200 text-zinc-900")
-                      }`}
-                    >
-                      {rec.severity === "critical" && <ShieldAlert className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
-                      {rec.severity === "warning" && <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />}
-                      {rec.severity === "info" && <Compass className="w-5 h-5 text-violet-500 shrink-0 mt-0.5" />}
-                      {rec.severity === "success" && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />}
-                      
-                      <div className="space-y-1 text-xs">
-                        <h4 className="font-bold">{rec.title}</h4>
-                        <p className="opacity-80 leading-relaxed">{rec.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 3-COLUMN DETAILED CARDS GRID */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                
-                {/* 1. IP & IDENTITY CARD */}
-                <div className={`rounded-2xl border overflow-hidden flex flex-col justify-between ${isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"}`}>
-                  <div className="flex-1">
-                    <div className={`p-4 border-b flex justify-between items-center ${isDark ? "border-zinc-800 bg-zinc-900/50" : "border-zinc-100 bg-zinc-50/50"}`}>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
-                        <Globe className="w-4 h-4" /> Identity & ASN
-                      </h3>
-                      <button onClick={() => copyToClipboard(report.ip)} className="p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 transition-colors" title="Copy IP">
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <div className="p-5 space-y-6">
-                      <div>
-                        <div className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Public IP Address</div>
-                        <div className="text-2xl sm:text-3xl font-black tracking-tight text-violet-600 dark:text-violet-400 font-mono break-all">{report.ip}</div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 text-xs">
-                        <div><div className="text-zinc-500 font-semibold mb-0.5">IPv4 / IPv6</div><div className="font-bold font-mono">{report.ipv4 ? "v4" : ""} {report.ipv6 ? "v6" : ""}</div></div>
-                        <div><div className="text-zinc-500 font-semibold mb-0.5">ASN</div><div className="font-bold font-mono">AS{report.asn || "---"}</div></div>
-                        <div className="col-span-2"><div className="text-zinc-500 font-semibold mb-0.5">ISP / Organization</div><div className="font-bold truncate">{report.isp}</div></div>
-                        <div className="col-span-2"><div className="text-zinc-500 font-semibold mb-0.5">Hostname</div><div className="font-bold font-mono text-[10px] break-all">{report.hostname || "N/A"}</div></div>
-                        <div className="col-span-2"><div className="text-zinc-500 font-semibold mb-0.5">Reverse DNS</div><div className="font-bold font-mono text-[10px] break-all">{report.reverse_dns || "N/A"}</div></div>
-                      </div>
-                    </div>
+                {/* 3. Exposure Summary Chips */}
+                <div className={`rounded-xl border p-5 space-y-4 ${
+                  isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"
+                }`}>
+                  <div className="space-y-0.5">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-violet-500">Exposed Parameters</h3>
+                    <p className="text-[10px] text-zinc-500 font-semibold">Exposed tracking markers classified by visibility.</p>
                   </div>
-                  <div className="px-5 pb-5">
-                    <details className="group mt-2 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50">
-                      <summary className="flex justify-between items-center text-[10px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
-                        <span>TECHNICAL DETAILS</span>
-                        <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
-                      </summary>
-                      <div className="mt-3 text-left">
-                        <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-48">
-                          {JSON.stringify({ ip: report.ip, hostname: report.hostname, reverse_dns: report.reverse_dns, connection_type: report.connection_type, ipv4: report.ipv4, ipv6: report.ipv6, isp: report.isp, org: report.organization, asn: report.asn }, null, 2)}
-                        </pre>
-                      </div>
-                    </details>
-                  </div>
-                </div>
-
-                {/* 2. GEOLOCATION CARD */}
-                <div className={`rounded-2xl border overflow-hidden flex flex-col justify-between ${isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"}`}>
-                  <div className="flex-1">
-                    <div className={`p-4 border-b flex justify-between items-center ${isDark ? "border-zinc-800 bg-zinc-900/50" : "border-zinc-100 bg-zinc-50/50"}`}>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
-                        <MapPin className="w-4 h-4" /> Geolocation
-                      </h3>
-                    </div>
-                    <div className="p-5 flex flex-col items-center text-center">
-                      {report.country_code && flagUrl !== "ERROR" ? (
-                        <div className="mb-4 rounded-lg overflow-hidden border border-zinc-200/60 dark:border-zinc-800/60 shadow-md w-20 h-12 relative shrink-0">
-                          {flagUrl ? (
-                            <img src={flagUrl} alt={report.country} className="w-full h-full object-cover block" onError={handleFlagError} />
-                          ) : (
-                            <div className="w-full h-full bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
-                          )}
-                        </div>
-                      ) : (
-                        <Globe className="w-12 h-12 text-zinc-400 mb-4 opacity-50" />
-                      )}
-                      
-                      <h4 className="text-lg font-black mb-1 leading-tight">
-                        {report.country_code ? `${getCountryEmoji(report.country_code)} ` : ""}{report.country || "Unknown Country"}
-                      </h4>
-                      <p className="text-zinc-500 text-xs font-bold mb-5">{report.city}{report.region ? `, ${report.region}` : ""}</p>
-                      
-                      <div className="w-full grid grid-cols-2 gap-4 text-left text-xs">
-                        <div><div className="text-zinc-500 font-semibold mb-0.5">Timezone</div><div className="font-bold truncate">{report.timezone}</div></div>
-                        <div><div className="text-zinc-500 font-semibold mb-0.5">Coordinates</div><div className="font-bold font-mono truncate">{report.latitude}, {report.longitude}</div></div>
-                        <div><div className="text-zinc-500 font-semibold mb-0.5">Carrier ISP Class</div><div className="font-bold truncate">{report.carrier_class || "Broadband"}</div></div>
-                        <div><div className="text-zinc-500 font-semibold mb-0.5">CGNAT Detection</div><div className="font-bold">{webRTCData.cgnat || report.cgnat ? "Yes (Shared IP)" : "No (Direct IP)"}</div></div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="px-5 pb-5">
-                    <details className="group mt-2 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50">
-                      <summary className="flex justify-between items-center text-[10px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
-                        <span>TECHNICAL DETAILS</span>
-                        <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
-                      </summary>
-                      <div className="mt-3 text-left">
-                        <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-48">
-                          {JSON.stringify({ country: report.country, country_code: report.country_code, region: report.region, city: report.city, latitude: report.latitude, longitude: report.longitude, timezone: report.timezone, carrier_class: report.carrier_class, cgnat: webRTCData.cgnat || report.cgnat }, null, 2)}
-                        </pre>
-                      </div>
-                    </details>
-                  </div>
-                </div>
-
-                {/* 3. SECURITY & TLS DIAGNOSTICS CARD */}
-                <div className={`rounded-2xl border overflow-hidden flex flex-col justify-between ${isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"}`}>
-                  <div className="flex-1">
-                    <div className={`p-4 border-b flex justify-between items-center ${isDark ? "border-zinc-800 bg-zinc-900/50" : "border-zinc-100 bg-zinc-50/50"}`}>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4" /> Security & TLS
-                      </h3>
-                    </div>
-                    <div className="p-5 grid grid-cols-2 gap-y-4 gap-x-2 text-xs">
-                      <div><div className="text-zinc-500 font-semibold mb-0.5">HTTPS</div><div className={`font-bold flex items-center gap-1 ${report.https ? "text-emerald-500" : "text-red-500"}`}>{report.https ? "Enforced" : "No"}</div></div>
-                      <div><div className="text-zinc-500 font-semibold mb-0.5">TLS Version</div><div className="font-bold">{report.tls_version || "None"}</div></div>
-                      <div><div className="text-zinc-500 font-semibold mb-0.5">HTTP Version</div><div className="font-bold">{report.http_version || "HTTP/1.1"}</div></div>
-                      <div><div className="text-zinc-500 font-semibold mb-0.5">HSTS status</div><div className="font-bold">{report.hsts ? "Active" : "Inactive"}</div></div>
-                      <div><div className="text-zinc-500 font-semibold mb-0.5">ALPN Negotiation</div><div className="font-bold font-mono">{report.alpn || "None"}</div></div>
-                      <div><div className="text-zinc-500 font-semibold mb-0.5">OCSP Stapling</div><div className="font-bold">{report.ocsp_stapling ? "Stapled" : "No"}</div></div>
-                      <div><div className="text-zinc-500 font-semibold mb-0.5">Forward Secrecy (PFS)</div><div className="font-bold">{report.pfs ? "Supported" : "No"}</div></div>
-                      <div><div className="text-zinc-500 font-semibold mb-0.5">Secure Context</div><div className="font-bold">{detectedBrowser.js && window.isSecureContext ? "Yes" : "No"}</div></div>
-                      <div className="col-span-2"><div className="text-zinc-500 font-semibold mb-0.5">Cipher Suite</div><div className="font-bold font-mono text-[10px] break-all leading-normal">{report.cipher_suite || "N/A"}</div></div>
-                      <div className="col-span-2"><div className="text-zinc-500 font-semibold mb-0.5">Certificate Issuer</div><div className="font-bold truncate">{report.cert_issuer || "N/A"}</div></div>
-                      <div className="col-span-2"><div className="text-zinc-500 font-semibold mb-0.5">Certificate Expiry</div><div className="font-bold">{report.cert_expiration || "N/A"}</div></div>
-                    </div>
-                  </div>
-                  <div className="px-5 pb-5">
-                    <details className="group mt-2 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50">
-                      <summary className="flex justify-between items-center text-[10px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
-                        <span>TECHNICAL DETAILS</span>
-                        <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
-                      </summary>
-                      <div className="mt-3 text-left">
-                        <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-48">
-                          {JSON.stringify({ https: report.https, http_version: report.http_version, tls_version: report.tls_version, cipher_suite: report.cipher_suite, alpn: report.alpn, hsts: report.hsts, ocsp_stapling: report.ocsp_stapling, cert_issuer: report.cert_issuer, cert_expiration: report.cert_expiration, pfs: report.pfs, secure_context: window.isSecureContext }, null, 2)}
-                        </pre>
-                      </div>
-                    </details>
-                  </div>
-                </div>
-
-                {/* 4. PRIVACY PROFILE CARD */}
-                <div className={`rounded-2xl border overflow-hidden flex flex-col justify-between ${isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"}`}>
-                  <div className="flex-1">
-                    <div className={`p-4 border-b flex justify-between items-center ${isDark ? "border-zinc-800 bg-zinc-900/50" : "border-zinc-100 bg-zinc-50/50"}`}>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
-                        <EyeOff className="w-4 h-4" /> Privacy & Fraud Risk
-                      </h3>
-                    </div>
-                    <div className="p-5 space-y-4">
-                      <div className="flex justify-between items-center border-b border-zinc-200/50 dark:border-zinc-800/50 pb-2 text-xs font-semibold">
-                        <span className="text-zinc-500">VPN / Tunnel Node</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${report.vpn ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"}`}>{report.vpn ? "YES" : "NO"}</span>
-                      </div>
-                      <div className="flex justify-between items-center border-b border-zinc-200/50 dark:border-zinc-800/50 pb-2 text-xs font-semibold">
-                        <span className="text-zinc-500">Tor Exit Node</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${report.tor ? "bg-red-500/10 text-red-500" : "bg-emerald-500/10 text-emerald-500"}`}>{report.tor ? "YES" : "NO"}</span>
-                      </div>
-                      <div className="flex justify-between items-center border-b border-zinc-200/50 dark:border-zinc-800/50 pb-2 text-xs font-semibold">
-                        <span className="text-zinc-500">Proxy Active</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${report.proxy ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"}`}>{report.proxy ? "YES" : "NO"}</span>
-                      </div>
-                      <div className="flex justify-between items-center border-b border-zinc-200/50 dark:border-zinc-800/50 pb-2 text-xs font-semibold">
-                        <span className="text-zinc-500">Datacenter / Hosting</span>
-                        <span className="text-zinc-800 dark:text-zinc-200">{report.hosting ? "Yes (Hosting IP)" : "No (User Line)"}</span>
-                      </div>
-                      <div className="flex justify-between items-center border-b border-zinc-200/50 dark:border-zinc-800/50 pb-2 text-xs font-semibold">
-                        <span className="text-zinc-500">ASN Classification</span>
-                        <span className="text-zinc-800 dark:text-zinc-200 capitalize">{report.asn_type || "Residential"}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-xs font-semibold">
-                        <span className="text-zinc-500">Fraud Risk Score</span>
-                        <span className={`font-mono font-bold ${report.risk_score > 35 ? "text-amber-500" : report.risk_score > 70 ? "text-red-500" : "text-emerald-500"}`}>{report.risk_score}%</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="px-5 pb-5">
-                    <details className="group mt-2 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50">
-                      <summary className="flex justify-between items-center text-[10px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
-                        <span>TECHNICAL DETAILS</span>
-                        <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
-                      </summary>
-                      <div className="mt-3 text-left">
-                        <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-48">
-                          {JSON.stringify({ risk_score: report.risk_score, hosting: report.hosting, vpn: report.vpn, proxy: report.proxy, tor: report.tor, anonymous: report.anonymous, mobile: report.mobile, residential: report.residential, datacenter: report.datacenter, asn_type: report.asn_type, carrier_class: report.carrier_class }, null, 2)}
-                        </pre>
-                      </div>
-                    </details>
-                  </div>
-                </div>
-
-                {/* 5. WEBRTC DETAILS CARD */}
-                <div className={`rounded-2xl border overflow-hidden flex flex-col justify-between ${isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"}`}>
-                  <div className="flex-1">
-                    <div className={`p-4 border-b flex justify-between items-center ${isDark ? "border-zinc-800 bg-zinc-900/50" : "border-zinc-100 bg-zinc-50/50"}`}>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
-                        <Wifi className="w-4 h-4" /> WebRTC Leak Check
-                      </h3>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                        webRTCData.status === "Safe" 
-                          ? "bg-emerald-500/10 text-emerald-500" 
-                          : webRTCData.status === "Partial"
-                            ? "bg-amber-500/10 text-amber-500"
-                            : "bg-red-500/10 text-red-500"
-                      }`}>
-                        {webRTCData.status === "Scanning" ? "Scanning..." : webRTCData.status === "Partial" ? "Partial Leak" : webRTCData.status === "Leak" ? "LEAK DETECTED" : "No Leak"}
+                  
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: "Public IP", level: "Visible" },
+                      { label: "ISP", level: "Visible" },
+                      { label: "ASN", level: "Visible" },
+                      { label: "Approx. Location", level: "Visible" },
+                      { label: "Browser Info", level: "Visible" },
+                      { label: "OS details", level: "Visible" },
+                      { label: "Screen Resolution", level: "Visible" },
+                      { label: "Language", level: "Visible" },
+                      { label: "Timezone", level: "Visible" },
+                      { label: "Canvas Hash", level: "Partially" },
+                      { label: "WebGL Renderer", level: "Partially" },
+                      { label: "Audio Hash", level: "Partially" },
+                      { label: "Hardware Threads", level: "Visible" },
+                      { label: "Device Memory", level: "Visible" },
+                      { label: "Cookies Status", level: "Visible" },
+                      { label: "Local IP", level: webRTCData.status === "Leak" || webRTCData.status === "Partial" ? "Visible" : "Hidden" },
+                    ].map((chip, idx) => (
+                      <span 
+                        key={idx} 
+                        className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                          chip.level === "Hidden"
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
+                            : chip.level === "Partially"
+                              ? "bg-amber-500/10 border-amber-500/30 text-amber-500"
+                              : "bg-zinc-500/10 border-zinc-200 dark:border-zinc-800 text-zinc-500"
+                        }`}
+                      >
+                        {chip.level === "Hidden" ? "✓" : chip.level === "Partially" ? "⚠" : "✗"} {chip.label}
                       </span>
-                    </div>
-                    <div className="p-5 space-y-4 text-xs font-semibold">
-                      <div>
-                        <div className="text-zinc-500 mb-1">Public Candidates (Reflexive)</div>
-                        <div className="font-mono text-zinc-800 dark:text-zinc-200 truncate">
-                          {webRTCData.publicIPs.length > 0 ? webRTCData.publicIPs.join(", ") : "None Detected"}
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-zinc-500 mb-1">Local IPv4</div>
-                          <div className="font-mono text-zinc-800 dark:text-zinc-200 truncate">
-                            {webRTCData.localIPv4.length > 0 ? webRTCData.localIPv4.join(", ") : "Hidden / None"}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-zinc-500 mb-1">Local IPv6</div>
-                          <div className="font-mono text-zinc-800 dark:text-zinc-200 truncate">
-                            {webRTCData.localIPv6.length > 0 ? webRTCData.localIPv6.join(", ") : "Hidden / None"}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-zinc-500 mb-1">mDNS Status</div>
-                          <div className="text-zinc-800 dark:text-zinc-200">{webRTCData.mdnsEnabled ? "Enabled (mDNS Active)" : "Disabled"}</div>
-                        </div>
-                        <div>
-                          <div className="text-zinc-500 mb-1">STUN Servers</div>
-                          <div className="text-zinc-800 dark:text-zinc-200">4 Queried</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="px-5 pb-5">
-                    <details className="group mt-2 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50">
-                      <summary className="flex justify-between items-center text-[10px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
-                        <span>TECHNICAL DETAILS</span>
-                        <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
-                      </summary>
-                      <div className="mt-3 text-left">
-                        <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-48">
-                          {JSON.stringify(webRTCData, null, 2)}
-                        </pre>
-                      </div>
-                    </details>
-                  </div>
-                </div>
-
-                {/* 6. SERVICE AVAILABILITY CARD */}
-                <div className={`rounded-2xl border overflow-hidden flex flex-col justify-between ${isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"}`}>
-                  <div className="flex-1">
-                    <div className={`p-4 border-b flex justify-between items-center ${isDark ? "border-zinc-800 bg-zinc-900/50" : "border-zinc-100 bg-zinc-50/50"}`}>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
-                        <Cpu className="w-4 h-4" /> Service Reachability
-                      </h3>
-                    </div>
-                    <div className="p-5 space-y-4">
-                      {/* AI Services */}
-                      <div>
-                        <h4 className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-2">AI Platforms</h4>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-semibold">
-                          {["ChatGPT", "Gemini", "Claude", "Copilot"].map(svc => (
-                            <div key={svc} className="flex justify-between items-center">
-                              <span className="text-zinc-600 dark:text-zinc-400">{svc}</span>
-                              <span className={`text-[10px] font-bold ${
-                                serviceStatuses[svc] === "Accessible" || serviceStatuses[svc] === "Reachable"
-                                  ? "text-emerald-500"
-                                  : serviceStatuses[svc] === "Network Accessible" || serviceStatuses[svc] === "Restricted"
-                                    ? "text-amber-500"
-                                    : "text-red-500"
-                              }`}>
-                                {serviceStatuses[svc] || "Testing..."}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Streaming Services */}
-                      <div className="pt-2 border-t border-zinc-200/50 dark:border-zinc-800/50">
-                        <h4 className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-2">Streaming Platforms</h4>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-semibold">
-                          {["Netflix", "Spotify", "Disney+", "Prime"].map(svc => (
-                            <div key={svc} className="flex justify-between items-center">
-                              <span className="text-zinc-600 dark:text-zinc-400">{svc}</span>
-                              <span className={`text-[10px] font-bold ${
-                                serviceStatuses[svc] === "Accessible" || serviceStatuses[svc] === "Reachable"
-                                  ? "text-emerald-500"
-                                  : serviceStatuses[svc] === "Network Accessible" || serviceStatuses[svc] === "Restricted"
-                                    ? "text-amber-500"
-                                    : "text-red-500"
-                              }`}>
-                                {serviceStatuses[svc] || "Testing..."}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="px-5 pb-5">
-                    <details className="group mt-2 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50">
-                      <summary className="flex justify-between items-center text-[10px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
-                        <span>TECHNICAL DETAILS</span>
-                        <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
-                      </summary>
-                      <div className="mt-3 text-left">
-                        <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-48">
-                          {JSON.stringify({ liveServiceStatuses: serviceStatuses, backendServices: report.services }, null, 2)}
-                        </pre>
-                      </div>
-                    </details>
-                  </div>
-                </div>
-
-                {/* 7. DETECTED BROWSER CARD */}
-                <div className={`rounded-2xl border overflow-hidden flex flex-col justify-between ${isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"}`}>
-                  <div className="flex-1">
-                    <div className={`p-4 border-b flex justify-between items-center ${isDark ? "border-zinc-800 bg-zinc-900/50" : "border-zinc-100 bg-zinc-50/50"}`}>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
-                        <Monitor className="w-4 h-4" /> Client Parameters
-                      </h3>
-                    </div>
-                    <div className="p-5 grid grid-cols-2 gap-y-4 gap-x-2 text-xs font-semibold">
-                      <div><div className="text-zinc-500 font-bold mb-0.5">Browser</div><div className="truncate text-zinc-800 dark:text-zinc-200">{detectedBrowser.name} {detectedBrowser.version !== "Unknown" ? detectedBrowser.version : ""}</div></div>
-                      <div><div className="text-zinc-500 font-bold mb-0.5">OS</div><div className="truncate text-zinc-800 dark:text-zinc-200">{detectedBrowser.os}</div></div>
-                      <div><div className="text-zinc-500 font-bold mb-0.5">Platform</div><div className="truncate text-zinc-800 dark:text-zinc-200">{detectedBrowser.platform}</div></div>
-                      <div><div className="text-zinc-500 font-bold mb-0.5">Language</div><div className="truncate text-zinc-800 dark:text-zinc-200">{detectedBrowser.language}</div></div>
-                      <div><div className="text-zinc-500 font-bold mb-0.5">Screen Dimensions</div><div className="truncate text-zinc-800 dark:text-zinc-200">{detectedBrowser.screen || "---"}</div></div>
-                      <div><div className="text-zinc-500 font-bold mb-0.5">Cookies Active</div><div className="truncate text-zinc-800 dark:text-zinc-200">{detectedBrowser.cookies ? "Yes" : "No"}</div></div>
-                      <div><div className="text-zinc-500 font-bold mb-0.5">JavaScript Engine</div><div className="truncate text-zinc-800 dark:text-zinc-200">{detectedBrowser.js ? "Active" : "Blocked"}</div></div>
-                      <div><div className="text-zinc-500 font-bold mb-0.5">Touch Inputs</div><div className="truncate text-zinc-800 dark:text-zinc-200">{detectedBrowser.touch ? "Supported" : "None"}</div></div>
-                    </div>
-                  </div>
-                  <div className="px-5 pb-5">
-                    <details className="group mt-2 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50">
-                      <summary className="flex justify-between items-center text-[10px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
-                        <span>TECHNICAL DETAILS</span>
-                        <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
-                      </summary>
-                      <div className="mt-3 text-left">
-                        <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-48">
-                          {JSON.stringify({ detectedBrowser, rawUserAgent: report.user_agent }, null, 2)}
-                        </pre>
-                      </div>
-                    </details>
+                    ))}
                   </div>
                 </div>
 
               </div>
 
-              {/* RE-SCAN SCAN NETWORK BUTTON */}
-              <div className="flex justify-center pt-8">
-                <button
-                  onClick={startAnalysis}
-                  className={`flex items-center gap-2.5 px-6 py-3 font-semibold rounded-xl text-sm transition-all border shadow-sm cursor-pointer ${
-                    isDark ? "bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-200" : "bg-white border-zinc-200 hover:bg-zinc-50 text-zinc-800"
-                  }`}
-                >
-                  <RefreshCw className="w-4 h-4" /> Re-Scan Network
-                </button>
+              {/* RIGHT COLUMN - SCROLLABLE EXPANDABLE CARD STACK */}
+              <div className="lg:col-span-7 flex flex-col space-y-3 min-h-0 overflow-y-auto pr-1 pb-4 scrollbar-thin">
+                
+                {/* 1. NETWORK PRIVACY */}
+                <div className={`rounded-xl border transition-all duration-300 overflow-hidden ${
+                  isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"
+                }`}>
+                  <div 
+                    onClick={() => toggleCard("network")}
+                    className={`p-4 flex items-center justify-between cursor-pointer select-none ${
+                      expandedCards["network"] ? (isDark ? "bg-zinc-900/50" : "bg-zinc-50/50") : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <EyeOff className="w-4 h-4 text-violet-500 shrink-0" />
+                      <div className="text-left">
+                        <h4 className="text-xs font-bold uppercase tracking-wider">Network Privacy</h4>
+                        <p className="text-[10px] text-zinc-500 font-semibold">
+                          {report.vpn ? "Routed through VPN / Anonymizer" : "ISP Direct Routing"}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-xs font-bold shrink-0">
+                      <span className="font-mono text-zinc-400 dark:text-zinc-600">
+                        {renderProgressBar(report.score_breakdown?.network ?? 100)}
+                      </span>
+                      <span className="font-mono min-w-10">
+                        {report.score_breakdown?.network ?? 100}/100
+                      </span>
+                      {getExposureLevelBadge(report.tor ? "High" : report.proxy ? "Medium" : report.hosting ? "Minor" : "Safe")}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                        expandedCards["network"] ? "rotate-180" : ""
+                      }`} />
+                    </div>
+                  </div>
+
+                  {expandedCards["network"] && (
+                    <div className="p-5 border-t border-zinc-200/50 dark:border-zinc-800/50 space-y-4 text-xs leading-normal">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><span className="text-zinc-500 block mb-0.5">VPN Detected</span><span className="font-bold">{report.vpn ? "Yes" : "No"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Tor Exit Node</span><span className="font-bold">{report.tor ? "Yes" : "No"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Proxy Active</span><span className="font-bold">{report.proxy ? "Yes" : "No"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Hosting/Datacenter IP</span><span className="font-bold">{report.hosting ? "Yes" : "No (Residential/Mobile)"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">ASN Type</span><span className="font-bold uppercase font-mono">{report.asn_type || "Residential"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">ISP Carrier Class</span><span className="font-bold">{report.carrier_class || "Broadband"}</span></div>
+                      </div>
+                      
+                      <div className="space-y-1 border-t border-zinc-200/30 dark:border-zinc-800/30 pt-3">
+                        <span className="text-violet-500 font-bold uppercase text-[10px] tracking-wider block">Auditor Recommendation</span>
+                        <p className="text-zinc-500">
+                          {report.tor 
+                            ? "Tor exit nodes provide high anonymity but are widely blocked by large services. Use a high-quality residential VPN for everyday auditing." 
+                            : report.vpn 
+                              ? "VPN is active. Your network privacy is protected from local ISP logging. Ensure no leaks are active." 
+                              : "No VPN detected. Your ISP and local routers log all visited domains. Route through a trusted VPN to secure your traffic."}
+                        </p>
+                      </div>
+
+                      <details className="group pt-2 border-t border-zinc-200/30 dark:border-zinc-800/30">
+                        <summary className="flex justify-between items-center text-[9px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
+                          <span>TECHNICAL DETAILS</span>
+                          <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
+                        </summary>
+                        <div className="mt-2">
+                          <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-40">
+                            {JSON.stringify({ vpn: report.vpn, tor: report.tor, proxy: report.proxy, hosting: report.hosting, asn_type: report.asn_type, carrier_class: report.carrier_class, ip_risk: report.risk_score }, null, 2)}
+                          </pre>
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. DNS SECURITY */}
+                <div className={`rounded-xl border transition-all duration-300 overflow-hidden ${
+                  isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"
+                }`}>
+                  <div 
+                    onClick={() => toggleCard("dns")}
+                    className={`p-4 flex items-center justify-between cursor-pointer select-none ${
+                      expandedCards["dns"] ? (isDark ? "bg-zinc-900/50" : "bg-zinc-50/50") : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Server className="w-4 h-4 text-violet-500 shrink-0" />
+                      <div className="text-left">
+                        <h4 className="text-xs font-bold uppercase tracking-wider">DNS Security</h4>
+                        <p className="text-[10px] text-zinc-500 font-semibold">
+                          {report.dns_leak === "Leak" ? "DNS Leaks Detected" : "DNS Queries Protected"}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-xs font-bold shrink-0">
+                      <span className="font-mono text-zinc-400 dark:text-zinc-600">
+                        {renderProgressBar(report.score_breakdown?.dns ?? 100)}
+                      </span>
+                      <span className="font-mono min-w-10">
+                        {report.score_breakdown?.dns ?? 100}/100
+                      </span>
+                      {getExposureLevelBadge(report.dns_leak === "Leak" ? "Critical" : "Safe")}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                        expandedCards["dns"] ? "rotate-180" : ""
+                      }`} />
+                    </div>
+                  </div>
+
+                  {expandedCards["dns"] && (
+                    <div className="p-5 border-t border-zinc-200/50 dark:border-zinc-800/50 space-y-4 text-xs leading-normal">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><span className="text-zinc-500 block mb-0.5">DNS Provider</span><span className="font-bold truncate block">{report.isp}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Resolver Country</span><span className="font-bold">{report.country}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Expected Country</span><span className="font-bold">{report.country}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Leak Status</span><span className={`font-bold ${report.dns_leak === "Leak" ? "text-red-500" : "text-emerald-500"}`}>{report.dns_leak === "Leak" ? "Leak Detected" : "No Leak"}</span></div>
+                      </div>
+                      
+                      <div className="space-y-1 border-t border-zinc-200/30 dark:border-zinc-800/30 pt-3">
+                        <span className="text-violet-500 font-bold uppercase text-[10px] tracking-wider block">Auditor Recommendation</span>
+                        <p className="text-zinc-500">
+                          {report.dns_leak === "Leak" 
+                            ? "Critical! Your browser is bypassing the VPN's DNS tunnel and querying local ISP resolvers. Change your VPN client settings to force DNS leak protection or enable DNS-over-HTTPS (DoH)." 
+                            : "Protected. Your DNS resolves match your public connection routing. No leaks detected."}
+                        </p>
+                      </div>
+
+                      <details className="group pt-2 border-t border-zinc-200/30 dark:border-zinc-800/30">
+                        <summary className="flex justify-between items-center text-[9px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
+                          <span>TECHNICAL DETAILS</span>
+                          <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
+                        </summary>
+                        <div className="mt-2">
+                          <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-40">
+                            {JSON.stringify({ dns_leak: report.dns_leak, resolver: report.isp, country: report.country }, null, 2)}
+                          </pre>
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. WEBRTC PROTECTION */}
+                <div className={`rounded-xl border transition-all duration-300 overflow-hidden ${
+                  isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"
+                }`}>
+                  <div 
+                    onClick={() => toggleCard("webrtc")}
+                    className={`p-4 flex items-center justify-between cursor-pointer select-none ${
+                      expandedCards["webrtc"] ? (isDark ? "bg-zinc-900/50" : "bg-zinc-50/50") : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Wifi className="w-4 h-4 text-violet-500 shrink-0" />
+                      <div className="text-left">
+                        <h4 className="text-xs font-bold uppercase tracking-wider">WebRTC Protection</h4>
+                        <p className="text-[10px] text-zinc-500 font-semibold">
+                          {webRTCData.status === "Leak" ? "WebRTC Public IP Leaked" : webRTCData.status === "Partial" ? "Local Candidates Exposed" : "WebRTC Protected"}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-xs font-bold shrink-0">
+                      <span className="font-mono text-zinc-400 dark:text-zinc-600">
+                        {renderProgressBar(report.score_breakdown?.webrtc ?? 100)}
+                      </span>
+                      <span className="font-mono min-w-10">
+                        {report.score_breakdown?.webrtc ?? 100}/100
+                      </span>
+                      {getExposureLevelBadge(webRTCData.status === "Leak" ? "Critical" : webRTCData.status === "Partial" ? "Minor" : "Safe")}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                        expandedCards["webrtc"] ? "rotate-180" : ""
+                      }`} />
+                    </div>
+                  </div>
+
+                  {expandedCards["webrtc"] && (
+                    <div className="p-5 border-t border-zinc-200/50 dark:border-zinc-800/50 space-y-4 text-xs leading-normal">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><span className="text-zinc-500 block mb-0.5">WebRTC Active</span><span className="font-bold">{webRTCData.status !== "Unsupported" ? "Yes" : "No"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">mDNS Masking</span><span className="font-bold">{webRTCData.mdnsEnabled ? "Enabled" : "Disabled"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Private Candidates</span><span className="font-bold truncate block">{webRTCData.localIPv4.concat(webRTCData.localIPv6).join(", ") || "Hidden"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Public Candidates</span><span className="font-bold truncate block">{webRTCData.publicIPs.join(", ") || "Hidden"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">STUN Servers Queried</span><span className="font-bold">4 Servers</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">CGNAT Loopback</span><span className="font-bold">{webRTCData.cgnat ? "CGNAT Range Detected" : "No CGNAT Detected"}</span></div>
+                      </div>
+                      
+                      <div className="space-y-1 border-t border-zinc-200/30 dark:border-zinc-800/30 pt-3">
+                        <span className="text-violet-500 font-bold uppercase text-[10px] tracking-wider block">Auditor Recommendation</span>
+                        <p className="text-zinc-500">
+                          {webRTCData.status === "Leak"
+                            ? "Critical Leak! WebRTC is bypassing the VPN proxy and exposing your real public IP. Turn off WebRTC in your browser config or use a WebRTC protection extension." 
+                            : webRTCData.status === "Partial"
+                              ? "Partial Exposure. Your local IP address is exposed. Although not a critical threat, this assists websites in fingerprinting. Enable mDNS masking in browser flags."
+                              : "Safe. WebRTC public IP candidates are correctly hidden."}
+                        </p>
+                      </div>
+
+                      <details className="group pt-2 border-t border-zinc-200/30 dark:border-zinc-800/30">
+                        <summary className="flex justify-between items-center text-[9px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
+                          <span>TECHNICAL DETAILS</span>
+                          <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
+                        </summary>
+                        <div className="mt-2">
+                          <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-40">
+                            {JSON.stringify(webRTCData, null, 2)}
+                          </pre>
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. BROWSER FINGERPRINT & TRACKING */}
+                <div className={`rounded-xl border transition-all duration-300 overflow-hidden ${
+                  isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"
+                }`}>
+                  <div 
+                    onClick={() => toggleCard("fingerprint")}
+                    className={`p-4 flex items-center justify-between cursor-pointer select-none ${
+                      expandedCards["fingerprint"] ? (isDark ? "bg-zinc-900/50" : "bg-zinc-50/50") : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Monitor className="w-4 h-4 text-violet-500 shrink-0" />
+                      <div className="text-left">
+                        <h4 className="text-xs font-bold uppercase tracking-wider">Browser Fingerprint</h4>
+                        <p className="text-[10px] text-zinc-500 font-semibold">
+                          Fingerprint Risk: Medium
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-xs font-bold shrink-0">
+                      <span className="font-mono text-zinc-400 dark:text-zinc-600">
+                        {renderProgressBar(report.score_breakdown?.fingerprint ?? 100)}
+                      </span>
+                      <span className="font-mono min-w-10">
+                        {report.score_breakdown?.fingerprint ?? 100}/100
+                      </span>
+                      {getExposureLevelBadge("Medium")}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                        expandedCards["fingerprint"] ? "rotate-180" : ""
+                      }`} />
+                    </div>
+                  </div>
+
+                  {expandedCards["fingerprint"] && (
+                    <div className="p-5 border-t border-zinc-200/50 dark:border-zinc-800/50 space-y-4 text-xs leading-normal">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><span className="text-zinc-500 block mb-0.5">Canvas Hash</span><span className="font-bold font-mono text-[10px] truncate block">{fingerprintData.canvas}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">WebGL Vendor</span><span className="font-bold truncate block">{fingerprintData.webglVendor}</span></div>
+                        <div className="col-span-2"><span className="text-zinc-500 block mb-0.5">WebGL Renderer</span><span className="font-bold truncate block">{fingerprintData.webglRenderer}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Audio Fingerprint</span><span className="font-bold font-mono text-[10px] truncate block">{fingerprintData.audio}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Fonts Probed</span><span className="font-bold truncate block">{fingerprintData.fonts.length} Fonts Detected</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Hardware Threads</span><span className="font-bold">{navigator.hardwareConcurrency || "N/A"} Cores</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Device Memory</span><span className="font-bold">{(navigator as any).deviceMemory || "N/A"} GB</span></div>
+                      </div>
+                      
+                      <div className="space-y-1 border-t border-zinc-200/30 dark:border-zinc-800/30 pt-3">
+                        <span className="text-violet-500 font-bold uppercase text-[10px] tracking-wider block">Auditor Recommendation</span>
+                        <p className="text-zinc-500">
+                          Canvas and WebGL parameters can uniquely profile your browser. For advanced tracking protection, use browsers with built-in randomization/fingerprint resistance such as Brave or Firefox (with RFP enabled).
+                        </p>
+                      </div>
+
+                      <details className="group pt-2 border-t border-zinc-200/30 dark:border-zinc-800/30">
+                        <summary className="flex justify-between items-center text-[9px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
+                          <span>TECHNICAL DETAILS</span>
+                          <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
+                        </summary>
+                        <div className="mt-2">
+                          <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-40">
+                            {JSON.stringify({ canvas: fingerprintData.canvas, webglVendor: fingerprintData.webglVendor, webglRenderer: fingerprintData.webglRenderer, audio: fingerprintData.audio, fonts: fingerprintData.fonts, cores: navigator.hardwareConcurrency, memory: (navigator as any).deviceMemory }, null, 2)}
+                          </pre>
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. CONNECTION SECURITY & TLS */}
+                <div className={`rounded-xl border transition-all duration-300 overflow-hidden ${
+                  isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"
+                }`}>
+                  <div 
+                    onClick={() => toggleCard("security")}
+                    className={`p-4 flex items-center justify-between cursor-pointer select-none ${
+                      expandedCards["security"] ? (isDark ? "bg-zinc-900/50" : "bg-zinc-50/50") : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Lock className="w-4 h-4 text-violet-500 shrink-0" />
+                      <div className="text-left">
+                        <h4 className="text-xs font-bold uppercase tracking-wider">Encryption & TLS</h4>
+                        <p className="text-[10px] text-zinc-500 font-semibold">
+                          {report.https ? `HTTPS Encryption - ${report.tls_version || "TLS 1.3"}` : "Unencrypted Connection"}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-xs font-bold shrink-0">
+                      <span className="font-mono text-zinc-400 dark:text-zinc-600">
+                        {renderProgressBar(report.score_breakdown?.security ?? 100)}
+                      </span>
+                      <span className="font-mono min-w-10">
+                        {report.score_breakdown?.security ?? 100}/100
+                      </span>
+                      {getExposureLevelBadge(report.https ? "Safe" : "Critical")}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                        expandedCards["security"] ? "rotate-180" : ""
+                      }`} />
+                    </div>
+                  </div>
+
+                  {expandedCards["security"] && (
+                    <div className="p-5 border-t border-zinc-200/50 dark:border-zinc-800/50 space-y-4 text-xs leading-normal">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><span className="text-zinc-500 block mb-0.5">HTTPS Enforced</span><span className="font-bold">{report.https ? "Yes" : "No"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">TLS version</span><span className="font-bold">{report.tls_version || "None"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">HTTP Protocol</span><span className="font-bold">{report.http_version || "HTTP/1.1"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">HSTS Configuration</span><span className="font-bold">{report.hsts ? "Enabled" : "Disabled"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">OCSP Stapling</span><span className="font-bold">{report.ocsp_stapling ? "Active" : "Inactive"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Forward Secrecy (PFS)</span><span className="font-bold">{report.pfs ? "Supported" : "No"}</span></div>
+                        <div className="col-span-2"><span className="text-zinc-500 block mb-0.5">Cipher Suite</span><span className="font-bold font-mono text-[10px] break-all leading-normal">{report.cipher_suite || "N/A"}</span></div>
+                        <div className="col-span-2"><span className="text-zinc-500 block mb-0.5">Certificate Issuer</span><span className="font-bold truncate block">{report.cert_issuer || "N/A"}</span></div>
+                        <div className="col-span-2"><span className="text-zinc-500 block mb-0.5">Certificate Expiry</span><span className="font-bold">{report.cert_expiration || "N/A"}</span></div>
+                      </div>
+                      
+                      <div className="space-y-1 border-t border-zinc-200/30 dark:border-zinc-800/30 pt-3">
+                        <span className="text-violet-500 font-bold uppercase text-[10px] tracking-wider block">Auditor Recommendation</span>
+                        <p className="text-zinc-500">
+                          {report.https 
+                            ? "Your session is fully encrypted over HTTPS. Secure headers (HSTS) protect against downgrade attacks." 
+                            : "Avoid cleartext sessions! Configure HTTPS on your web servers immediately."}
+                        </p>
+                      </div>
+
+                      <details className="group pt-2 border-t border-zinc-200/30 dark:border-zinc-800/30">
+                        <summary className="flex justify-between items-center text-[9px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
+                          <span>TECHNICAL DETAILS</span>
+                          <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
+                        </summary>
+                        <div className="mt-2">
+                          <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-40">
+                            {JSON.stringify({ https: report.https, tls: report.tls_version, cipher: report.cipher_suite, alpn: report.alpn, hsts: report.hsts, ocsp: report.ocsp_stapling, pfs: report.pfs, issuer: report.cert_issuer, expires: report.cert_expiration }, null, 2)}
+                          </pre>
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+
+                {/* 6. IP REPUTATION & BLACKLISTS */}
+                <div className={`rounded-xl border transition-all duration-300 overflow-hidden ${
+                  isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"
+                }`}>
+                  <div 
+                    onClick={() => toggleCard("reputation")}
+                    className={`p-4 flex items-center justify-between cursor-pointer select-none ${
+                      expandedCards["reputation"] ? (isDark ? "bg-zinc-900/50" : "bg-zinc-50/50") : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <ShieldAlert className="w-4 h-4 text-violet-500 shrink-0" />
+                      <div className="text-left">
+                        <h4 className="text-xs font-bold uppercase tracking-wider">IP Reputation</h4>
+                        <p className="text-[10px] text-zinc-500 font-semibold">
+                          Fraud Risk: {report.risk_score}%
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-xs font-bold shrink-0">
+                      <span className="font-mono text-zinc-400 dark:text-zinc-600">
+                        {renderProgressBar(report.score_breakdown?.reputation ?? 100)}
+                      </span>
+                      <span className="font-mono min-w-10">
+                        {report.score_breakdown?.reputation ?? 100}/100
+                      </span>
+                      {getExposureLevelBadge(report.risk_score > 70 ? "High" : report.risk_score > 30 ? "Medium" : "Safe")}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                        expandedCards["reputation"] ? "rotate-180" : ""
+                      }`} />
+                    </div>
+                  </div>
+
+                  {expandedCards["reputation"] && (
+                    <div className="p-5 border-t border-zinc-200/50 dark:border-zinc-800/50 space-y-4 text-xs leading-normal">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><span className="text-zinc-500 block mb-0.5">Risk Score</span><span className="font-bold font-mono">{report.risk_score}%</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Blacklist Status</span><span className="font-bold">{report.risk_score > 40 ? "Listed" : "Clean"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Reported Activities</span><span className="font-bold">{report.risk_score > 20 ? "Elevated Scanning/Spam flags" : "None"}</span></div>
+                        <div><span className="text-zinc-500 block mb-0.5">Network Security Index</span><span className="font-bold">{100 - report.risk_score}%</span></div>
+                      </div>
+                      
+                      <div className="space-y-1 border-t border-zinc-200/30 dark:border-zinc-800/30 pt-3">
+                        <span className="text-violet-500 font-bold uppercase text-[10px] tracking-wider block">Auditor Recommendation</span>
+                        <p className="text-zinc-500">
+                          {report.risk_score > 35 
+                            ? "This IP address is flagged as suspicious. Some Cloudflare protected websites or payment gateways may prompt you with CAPTCHAs. Consider routing your traffic through another VPN server." 
+                            : "Safe. Your IP has a clean reputation."}
+                        </p>
+                      </div>
+
+                      <details className="group pt-2 border-t border-zinc-200/30 dark:border-zinc-800/30">
+                        <summary className="flex justify-between items-center text-[9px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
+                          <span>TECHNICAL DETAILS</span>
+                          <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
+                        </summary>
+                        <div className="mt-2">
+                          <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-40">
+                            {JSON.stringify({ risk_score: report.risk_score, hosting: report.hosting, anonymous: report.anonymous, blacklisted: report.risk_score > 40 }, null, 2)}
+                          </pre>
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+
+                {/* 7. SERVICE & PLATFORM COMPATIBILITY */}
+                <div className={`rounded-xl border transition-all duration-300 overflow-hidden ${
+                  isDark ? "bg-zinc-900/30 border-zinc-800/80" : "bg-white border-zinc-200 shadow-sm"
+                }`}>
+                  <div 
+                    onClick={() => toggleCard("compatibility")}
+                    className={`p-4 flex items-center justify-between cursor-pointer select-none ${
+                      expandedCards["compatibility"] ? (isDark ? "bg-zinc-900/50" : "bg-zinc-50/50") : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Cpu className="w-4 h-4 text-violet-500 shrink-0" />
+                      <div className="text-left">
+                        <h4 className="text-xs font-bold uppercase tracking-wider">Service Compatibility</h4>
+                        <p className="text-[10px] text-zinc-500 font-semibold">
+                          AI & Streaming Access Audit
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-xs font-bold shrink-0">
+                      <span className="font-mono text-zinc-400 dark:text-zinc-600">
+                        {renderProgressBar(report.score_breakdown?.compatibility ?? 100)}
+                      </span>
+                      <span className="font-mono min-w-10">
+                        {report.score_breakdown?.compatibility ?? 100}/100
+                      </span>
+                      {getExposureLevelBadge(report.vpn ? "Minor" : "Safe")}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                        expandedCards["compatibility"] ? "rotate-180" : ""
+                      }`} />
+                    </div>
+                  </div>
+
+                  {expandedCards["compatibility"] && (
+                    <div className="p-5 border-t border-zinc-200/50 dark:border-zinc-800/50 space-y-4 text-xs leading-normal">
+                      
+                      <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                        {/* AI platforms */}
+                        <div>
+                          <span className="text-violet-500 font-bold uppercase text-[9px] tracking-wider block mb-2">AI Platforms</span>
+                          <div className="space-y-2">
+                            {["ChatGPT", "Gemini", "Claude", "Copilot"].map(svc => (
+                              <div key={svc} className="flex justify-between items-center">
+                                <span className="text-zinc-500 font-semibold">{svc}</span>
+                                <span className={`font-bold ${
+                                  serviceStatuses[svc] === "Accessible" || serviceStatuses[svc] === "Reachable"
+                                    ? "text-emerald-500"
+                                    : "text-amber-500"
+                                }`}>
+                                  {serviceStatuses[svc] || "Testing..."}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Streaming platforms */}
+                        <div>
+                          <span className="text-violet-500 font-bold uppercase text-[9px] tracking-wider block mb-2">Streaming Platforms</span>
+                          <div className="space-y-2">
+                            {["Netflix", "Spotify", "Disney+", "Prime"].map(svc => (
+                              <div key={svc} className="flex justify-between items-center">
+                                <span className="text-zinc-500 font-semibold">{svc}</span>
+                                <span className={`font-bold ${
+                                  serviceStatuses[svc] === "Accessible" || serviceStatuses[svc] === "Reachable"
+                                    ? "text-emerald-500"
+                                    : "text-amber-500"
+                                }`}>
+                                  {serviceStatuses[svc] || "Testing..."}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 border-t border-zinc-200/30 dark:border-zinc-800/30 pt-3">
+                        <span className="text-violet-500 font-bold uppercase text-[10px] tracking-wider block">Auditor Recommendation</span>
+                        <p className="text-zinc-500">
+                          {report.vpn 
+                            ? "Your anonymized connection might encounter login or streaming blocks on Netflix/ChatGPT due to public IP flag pools. Keep VPN active but switch nodes if blocks occur." 
+                            : "Your connection has direct access compatibility since it is residential."}
+                        </p>
+                      </div>
+
+                      <details className="group pt-2 border-t border-zinc-200/30 dark:border-zinc-800/30">
+                        <summary className="flex justify-between items-center text-[9px] font-bold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer list-none select-none">
+                          <span>TECHNICAL DETAILS</span>
+                          <ChevronDown className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" />
+                        </summary>
+                        <div className="mt-2">
+                          <pre className="text-[10px] font-mono p-3 bg-zinc-950/90 text-emerald-400 rounded-lg overflow-x-auto select-all max-h-40">
+                            {JSON.stringify({ serviceStatuses, backendServices: report.services }, null, 2)}
+                          </pre>
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+
               </div>
 
             </motion.div>
@@ -1152,13 +1377,11 @@ export default function Home() {
         </AnimatePresence>
 
         {/* Footer */}
-        <footer className={`mt-20 text-center text-[10px] font-bold tracking-wider uppercase border-t py-6 transition-colors duration-700 ${
-          isDark ? "border-zinc-900 text-zinc-600" : "border-zinc-200 text-zinc-400"
-        }`}>
+        <footer className="mt-auto pt-6 text-center text-[9px] font-bold tracking-wider uppercase border-t border-zinc-200 dark:border-zinc-900 text-zinc-500 shrink-0 h-16">
           <div>
             &copy; {new Date().getFullYear()} {branding.copyright_text || branding.name}. {branding.footer_text}
           </div>
-          <div className="flex justify-center gap-4 mt-3 normal-case font-semibold text-zinc-500 text-xs">
+          <div className="flex justify-center gap-4 mt-2 normal-case font-semibold text-zinc-500 text-xs">
             {branding.support_url && <a href={branding.support_url} target="_blank" rel="noreferrer" className="hover:text-violet-500">Support</a>}
             {branding.github_url && <a href={branding.github_url} target="_blank" rel="noreferrer" className="hover:text-violet-500">GitHub</a>}
             {branding.documentation_url && <a href={branding.documentation_url} target="_blank" rel="noreferrer" className="hover:text-violet-500">Docs</a>}

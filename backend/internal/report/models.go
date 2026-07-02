@@ -83,11 +83,11 @@ type ServicesResult struct {
 
 // ScoreBreakdown represents 0-100 scores for each category
 type ScoreBreakdown struct {
-	DNS        int `json:"dns"`
-	WebRTC     int `json:"webrtc"`
-	Privacy    int `json:"privacy"`
-	Reputation int `json:"reputation"`
-	Streaming  int `json:"streaming"`
-	AI         int `json:"ai"`
-	Security   int `json:"security"`
+	Network       int `json:"network"`
+	DNS           int `json:"dns"`
+	WebRTC        int `json:"webrtc"`
+	Fingerprint   int `json:"fingerprint"`
+	Security      int `json:"security"`
+	Reputation    int `json:"reputation"`
+	Compatibility int `json:"compatibility"`
 }

@@ -140,7 +140,15 @@ func main() {
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	logger.Info("Starting server", zap.String("addr", addr))
-	if err := r.Run(addr); err != nil {
-		logger.Fatal("Server failed", zap.Error(err))
+	
+	if cfg.SSL.Enabled {
+		logger.Info("SSL is enabled, starting HTTPS server")
+		if err := r.RunTLS(addr, cfg.SSL.CertPath, cfg.SSL.KeyPath); err != nil {
+			logger.Fatal("Server failed to start in TLS mode", zap.Error(err))
+		}
+	} else {
+		if err := r.Run(addr); err != nil {
+			logger.Fatal("Server failed", zap.Error(err))
+		}
 	}
 }

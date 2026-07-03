@@ -11,9 +11,11 @@ coverage/
 # Next.js Production Builds
 .next/
 out/
+/build
 
 # Production standalone build files
 next-env.d.ts
+*.tsbuildinfo
 
 # Go Binaries and Executables
 backend/neocheck
@@ -55,3 +57,34 @@ neocheck-data/
 *.sw?
 .gemini/
 .agents/
+
+# Vercel / debug logs
+.vercel
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ---------------------------------------------------------------------------
+# Local project structure & boilerplate (keep locally, do not publish)
+# ---------------------------------------------------------------------------
+
+# GitHub community templates
+.github/ISSUE_TEMPLATE/
+.github/PULL_REQUEST_TEMPLATE.md
+
+# Open-source boilerplate docs (main README is enough)
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+SECURITY.md
+CHANGELOG.md
+ROADMAP.md
+/docs/
+
+# create-next-app leftovers
+frontend/README.md
+frontend/public/file.svg
+frontend/public/globe.svg
+frontend/public/next.svg
+frontend/public/vercel.svg
+frontend/public/window.svg

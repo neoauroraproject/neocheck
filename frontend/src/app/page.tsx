@@ -1,22 +1,29 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   ArrowUpRight,
   ChevronDown,
   Copy,
-  Globe2,
+  Eye,
   MapPin,
   Moon,
   RefreshCw,
-  Shield,
   ShieldAlert,
   ShieldCheck,
   Sun,
-  Wifi,
 } from "lucide-react"
 import { collectClientDiagnostics } from "@/lib/diagnostics"
+import {
+  buildExposureItems,
+  countryCodeToFlag,
+  exposureLevelMeta,
+  isDnsLeak,
+  isDnsSafe,
+  resolveWebRTCStatus,
+  type ExposureLevel,
+} from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type {
   Branding,
@@ -36,161 +43,124 @@ const defaultBranding: Branding = {
   documentation_url: "https://github.com/neoauroraproject/neocheck/tree/main/docs",
 }
 
-type StatusVariant = "safe" | "warn" | "danger" | "info"
+type StatusTone = "ok" | "warn" | "bad" | "neutral"
 
-const variantStyles: Record<StatusVariant, {
-  card: string
-  icon: string
-  badge: string
-  glow: string
-}> = {
-  safe: {
-    card: "border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent",
-    icon: "text-emerald-400 bg-emerald-500/15",
-    badge: "bg-emerald-500/15 text-emerald-300 border-emerald-500/25",
-    glow: "shadow-[0_0_40px_-8px_rgba(16,185,129,0.45)]",
+const toneStyles: Record<StatusTone, { border: string; text: string; bg: string }> = {
+  ok: {
+    border: "border-l-emerald-500",
+    text: "text-emerald-700 dark:text-emerald-400",
+    bg: "bg-[var(--surface)]",
   },
   warn: {
-    card: "border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent",
-    icon: "text-amber-400 bg-amber-500/15",
-    badge: "bg-amber-500/15 text-amber-300 border-amber-500/25",
-    glow: "shadow-[0_0_40px_-8px_rgba(245,158,11,0.35)]",
+    border: "border-l-amber-500",
+    text: "text-amber-700 dark:text-amber-400",
+    bg: "bg-[var(--surface)]",
   },
-  danger: {
-    card: "border-rose-500/30 bg-gradient-to-br from-rose-500/10 via-rose-500/5 to-transparent",
-    icon: "text-rose-400 bg-rose-500/15",
-    badge: "bg-rose-500/15 text-rose-300 border-rose-500/25",
-    glow: "shadow-[0_0_40px_-8px_rgba(244,63,94,0.4)]",
+  bad: {
+    border: "border-l-rose-500",
+    text: "text-rose-700 dark:text-rose-400",
+    bg: "bg-[var(--surface)]",
   },
-  info: {
-    card: "border-sky-500/30 bg-gradient-to-br from-sky-500/10 via-indigo-500/5 to-transparent",
-    icon: "text-sky-400 bg-sky-500/15",
-    badge: "bg-sky-500/15 text-sky-300 border-sky-500/25",
-    glow: "shadow-[0_0_40px_-8px_rgba(56,189,248,0.3)]",
+  neutral: {
+    border: "border-l-zinc-400 dark:border-l-zinc-600",
+    text: "text-[var(--fg)]",
+    bg: "bg-[var(--surface)]",
   },
 }
 
-function SecurityCard({
+function StatusCard({
   title,
-  headline,
-  subtitle,
-  variant,
-  icon: Icon,
-  delay = 0,
+  status,
+  detail,
+  tone,
 }: {
   title: string
-  headline: string
-  subtitle: string
-  variant: StatusVariant
-  icon: React.ElementType
-  delay?: number
+  status: string
+  detail: string
+  tone: StatusTone
 }) {
-  const s = variantStyles[variant]
+  const s = toneStyles[tone]
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className={cn(
-        "relative rounded-2xl border p-4 overflow-hidden backdrop-blur-sm",
-        s.card,
-        variant !== "info" && s.glow,
-      )}
-    >
-      <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-      <div className="flex items-start justify-between gap-3 relative">
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)] mb-2">{title}</p>
-          <p className="text-lg font-bold tracking-tight leading-tight">{headline}</p>
-          <p className="text-[11px] text-[var(--muted)] mt-1.5 leading-relaxed">{subtitle}</p>
-        </div>
-        <div className={cn("p-2.5 rounded-xl shrink-0", s.icon)}>
-          <Icon className="size-5" strokeWidth={1.75} />
-        </div>
-      </div>
-    </motion.div>
+    <div className={cn("rounded-xl border border-[var(--border)] border-l-[3px] p-4", s.border, s.bg)}>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">{title}</p>
+      <p className={cn("text-base font-semibold mt-1", s.text)}>{status}</p>
+      <p className="text-[12px] text-[var(--muted)] mt-1 leading-relaxed">{detail}</p>
+    </div>
   )
 }
 
 function ScoreRing({ score }: { score: number }) {
-  const radius = 52
+  const radius = 48
   const circumference = 2 * Math.PI * radius
   const offset = circumference - (score / 100) * circumference
-  const color =
-    score >= 85 ? "#34d399" : score >= 65 ? "#38bdf8" : score >= 45 ? "#fbbf24" : "#fb7185"
+  const stroke = score >= 80 ? "#10b981" : score >= 60 ? "#0ea5e9" : score >= 40 ? "#f59e0b" : "#f43f5e"
 
   return (
-    <div className="relative size-36 shrink-0">
+    <div className="relative size-32 shrink-0">
       <svg className="size-full -rotate-90" viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r={radius} fill="none" stroke="currentColor" strokeWidth="8" className="text-white/5" />
+        <circle cx="60" cy="60" r={radius} fill="none" stroke="currentColor" strokeWidth="7" className="text-[var(--border)]" />
         <motion.circle
-          cx="60"
-          cy="60"
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth="8"
-          strokeLinecap="round"
+          cx="60" cy="60" r={radius}
+          fill="none" stroke={stroke} strokeWidth="7" strokeLinecap="round"
           strokeDasharray={circumference}
           initial={{ strokeDashoffset: circumference }}
           animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-bold tabular-nums tracking-tight">{score}</span>
-        <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider mt-0.5">Score</span>
+        <span className="text-2xl font-bold tabular-nums">{score}</span>
+        <span className="text-[10px] text-[var(--muted)]">/ 100</span>
       </div>
+    </div>
+  )
+}
+
+function ExposureChip({ label, value, level, hint }: { label: string; value: string; level: ExposureLevel; hint: string }) {
+  const meta = exposureLevelMeta[level]
+  return (
+    <div
+      className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 hover:border-[var(--muted)]/40 transition-colors"
+      title={hint}
+    >
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <span className="text-[11px] text-[var(--muted)]">{label}</span>
+        <span className={cn("size-2 rounded-full shrink-0", meta.dot)} title={meta.label} />
+      </div>
+      <p className="text-[13px] font-medium truncate">{value}</p>
+      <p className="text-[10px] text-[var(--muted)] mt-1 opacity-0 group-hover:opacity-100 transition-opacity leading-snug">
+        {hint}
+      </p>
     </div>
   )
 }
 
 function MetricRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-6 py-2.5 border-b border-white/[0.06] last:border-0">
+    <div className="flex items-baseline justify-between gap-4 py-2.5 border-b border-[var(--border)] last:border-0">
       <span className="text-[12px] text-[var(--muted)]">{label}</span>
-      <span className={cn("text-[12px] text-right truncate max-w-[58%]", mono && "font-mono text-[11px]")}>
-        {value || "—"}
-      </span>
+      <span className={cn("text-[12px] text-right truncate max-w-[58%]", mono && "font-mono text-[11px]")}>{value || "—"}</span>
     </div>
   )
 }
 
-function Section({
-  title,
-  summary,
-  children,
-  defaultOpen = false,
-}: {
-  title: string
-  summary?: string
-  children: React.ReactNode
-  defaultOpen?: boolean
+function Section({ title, summary, children, defaultOpen = false }: {
+  title: string; summary?: string; children: React.ReactNode; defaultOpen?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-sm overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
-      >
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
+      <button type="button" onClick={() => setOpen(v => !v)} className="w-full flex items-center justify-between gap-4 px-4 py-3.5 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold">{title}</p>
+          <p className="text-[13px] font-medium">{title}</p>
           {summary && !open && <p className="text-[11px] text-[var(--muted)] mt-0.5 truncate">{summary}</p>}
         </div>
         <ChevronDown className={cn("size-4 text-[var(--muted)] shrink-0 transition-transform", open && "rotate-180")} />
       </button>
       <AnimatePresence initial={false}>
         {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22 }}
-            className="overflow-hidden"
-          >
-            <div className="px-5 pb-4 border-t border-[var(--border)]">{children}</div>
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="px-4 pb-3 border-t border-[var(--border)]">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -198,38 +168,52 @@ function Section({
   )
 }
 
-function webrtcVariant(status?: WebRTCData["status"]): { variant: StatusVariant; headline: string; subtitle: string } {
+function webrtcTone(status: WebRTCData["status"]): StatusTone {
+  if (status === "Safe") return "ok"
+  if (status === "Leak") return "bad"
+  if (status === "Partial") return "warn"
+  return "neutral"
+}
+
+function webrtcCopy(status: WebRTCData["status"]): { status: string; detail: string } {
   switch (status) {
-    case "Safe":
-      return { variant: "safe", headline: "Secure", subtitle: "No public IP leak via WebRTC" }
-    case "Leak":
-      return { variant: "danger", headline: "Leak!", subtitle: "Real IP may be exposed through STUN" }
-    case "Partial":
-      return { variant: "warn", headline: "Partial", subtitle: "Local network addresses visible" }
-    case "Unsupported":
-      return { variant: "info", headline: "N/A", subtitle: "WebRTC not available in browser" }
-    default:
-      return { variant: "info", headline: "Scanning…", subtitle: "Checking ICE candidates" }
+    case "Safe": return { status: "Secure", detail: "No public IP exposed through WebRTC/STUN." }
+    case "Leak": return { status: "Leaking", detail: "Your real IP may be visible despite VPN or proxy." }
+    case "Partial": return { status: "Partial", detail: "Local network addresses are visible to websites." }
+    case "Unsupported": return { status: "N/A", detail: "WebRTC is disabled or unavailable." }
+    default: return { status: "Checking…", detail: "Scanning ICE candidates." }
   }
 }
 
-function dnsVariant(leak?: string): { variant: StatusVariant; headline: string; subtitle: string } {
-  if (leak === "No Leak") return { variant: "safe", headline: "Protected", subtitle: "DNS queries stay within tunnel" }
-  if (leak === "Leak") return { variant: "danger", headline: "Leaking!", subtitle: "ISP DNS may reveal real location" }
-  return { variant: "warn", headline: "Unknown", subtitle: "Could not verify DNS routing" }
+function dnsTone(leak?: string): StatusTone {
+  if (isDnsSafe(leak)) return "ok"
+  if (isDnsLeak(leak)) return "bad"
+  return "warn"
 }
 
-function tunnelVariant(vpn: boolean, proxy: boolean, tor: boolean): { variant: StatusVariant; headline: string; subtitle: string } {
-  if (tor) return { variant: "safe", headline: "Tor", subtitle: "Traffic routed through Tor network" }
-  if (vpn) return { variant: "safe", headline: "VPN Active", subtitle: "Connection is tunneled & obfuscated" }
-  if (proxy) return { variant: "warn", headline: "Proxy", subtitle: "Proxy detected — partial masking" }
-  return { variant: "danger", headline: "Exposed", subtitle: "Direct connection — real IP visible" }
+function dnsCopy(leak?: string): { status: string; detail: string } {
+  if (isDnsSafe(leak)) return { status: "Protected", detail: "DNS requests appear routed correctly." }
+  if (isDnsLeak(leak)) return { status: "Leaking", detail: "DNS may reveal your ISP or real location." }
+  return { status: "Unknown", detail: "Could not fully verify DNS routing." }
 }
 
-function reputationVariant(risk: number): { variant: StatusVariant; headline: string; subtitle: string } {
-  if (risk < 20) return { variant: "safe", headline: "Clean IP", subtitle: "No fraud flags on reputation DBs" }
-  if (risk < 50) return { variant: "warn", headline: "Moderate", subtitle: "Some risk signals detected" }
-  return { variant: "danger", headline: "Flagged", subtitle: "High abuse score — may be blocked" }
+function tunnelTone(vpn: boolean, proxy: boolean, tor: boolean): StatusTone {
+  if (tor || vpn) return "ok"
+  if (proxy) return "warn"
+  return "bad"
+}
+
+function tunnelCopy(vpn: boolean, proxy: boolean, tor: boolean): { status: string; detail: string } {
+  if (tor) return { status: "Tor", detail: "Traffic exits through the Tor network." }
+  if (vpn) return { status: "VPN active", detail: "Your IP is masked by the VPN server." }
+  if (proxy) return { status: "Proxy", detail: "A proxy is detected — partial masking only." }
+  return { status: "Direct", detail: "No VPN/proxy — your real IP is exposed to sites." }
+}
+
+function reputationTone(risk: number): StatusTone {
+  if (risk < 25) return "ok"
+  if (risk < 50) return "warn"
+  return "bad"
 }
 
 export default function Home() {
@@ -249,10 +233,7 @@ export default function Home() {
   }, [theme])
 
   useEffect(() => {
-    fetch("/api/branding")
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setBranding(data) })
-      .catch(() => {})
+    fetch("/api/branding").then(r => r.ok ? r.json() : null).then(d => { if (d) setBranding(d) }).catch(() => {})
   }, [])
 
   const runAnalysis = useCallback(async () => {
@@ -277,6 +258,16 @@ export default function Home() {
 
   useEffect(() => { runAnalysis() }, [runAnalysis])
 
+  const webrtcStatus = resolveWebRTCStatus(webRTC?.status, report?.webrtc_leak)
+
+  const exposureItems = useMemo(() => {
+    if (!report) return []
+    return buildExposureItems(report, browser, fingerprint, webRTC ? { ...webRTC, status: webrtcStatus } : null)
+  }, [report, browser, fingerprint, webRTC, webrtcStatus])
+
+  const exposedCount = exposureItems.filter(i => i.level === "exact").length
+  const protectedCount = exposureItems.filter(i => i.level === "hidden").length
+
   const copyIP = () => {
     if (!report?.ip) return
     navigator.clipboard.writeText(report.ip)
@@ -284,41 +275,22 @@ export default function Home() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const flagUrl = report?.country_code
-    ? `https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/flags/4x3/${report.country_code.toLowerCase()}.svg`
-    : null
-
-  const webrtc = webrtcVariant(webRTC?.status)
-  const dns = dnsVariant(report?.dns_leak)
-  const tunnel = tunnelVariant(!!report?.vpn, !!report?.proxy, !!report?.tor)
-  const reputation = reputationVariant(report?.risk_score ?? 0)
+  const flagEmoji = countryCodeToFlag(report?.country_code)
+  const locationLine = [report?.city, report?.region].filter(Boolean).join(", ")
 
   return (
-    <div className="min-h-screen flex flex-col mesh-bg">
-      <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--bg)]/70 backdrop-blur-xl">
+    <div className="min-h-screen flex flex-col">
+      <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--bg)]/90 backdrop-blur-md">
         <div className="mx-auto max-w-3xl px-5 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="size-7 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <ShieldCheck className="size-3.5 text-white" strokeWidth={2.5} />
-            </div>
-            <span className="text-sm font-semibold tracking-tight">{branding.name}</span>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="size-4 text-[var(--muted)]" />
+            <span className="text-sm font-semibold">{branding.name}</span>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={runAnalysis}
-              disabled={loading}
-              className="p-2 rounded-xl text-[var(--muted)] hover:text-[var(--fg)] hover:bg-white/[0.06] transition-all disabled:opacity-40"
-              aria-label="Refresh"
-            >
+            <button type="button" onClick={runAnalysis} disabled={loading} className="p-2 rounded-lg text-[var(--muted)] hover:text-[var(--fg)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] disabled:opacity-40" aria-label="Refresh">
               <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             </button>
-            <button
-              type="button"
-              onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
-              className="p-2 rounded-xl text-[var(--muted)] hover:text-[var(--fg)] hover:bg-white/[0.06] transition-all"
-              aria-label="Toggle theme"
-            >
+            <button type="button" onClick={() => setTheme(t => t === "dark" ? "light" : "dark")} className="p-2 rounded-lg text-[var(--muted)] hover:text-[var(--fg)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06]" aria-label="Toggle theme">
               {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </button>
           </div>
@@ -328,237 +300,181 @@ export default function Home() {
       <main className="flex-1 mx-auto w-full max-w-3xl px-5 py-8">
         <AnimatePresence mode="wait">
           {loading && !report ? (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col items-center justify-center py-36 gap-6"
-            >
-              <div className="relative size-16">
-                <div className="absolute inset-0 rounded-full border-2 border-indigo-500/20" />
-                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-cyan-400 animate-spin" />
-                <div className="absolute inset-3 rounded-full bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 animate-glow-pulse" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-medium">Scanning your connection</p>
-                <p className="text-xs text-[var(--muted)] mt-1">IP · DNS · WebRTC · Security</p>
-              </div>
+            <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center py-32 gap-3">
+              <div className="size-8 border-2 border-[var(--border)] border-t-[var(--fg)] rounded-full animate-spin" />
+              <p className="text-sm text-[var(--muted)]">Analyzing your connection…</p>
             </motion.div>
           ) : error ? (
-            <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-36 space-y-4">
-              <ShieldAlert className="size-10 text-rose-400 mx-auto" />
-              <p className="font-semibold">Scan failed</p>
+            <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-32 space-y-3">
+              <ShieldAlert className="size-9 text-[var(--muted)] mx-auto" />
+              <p className="font-medium">Scan failed</p>
               <p className="text-sm text-[var(--muted)]">{error}</p>
-              <button type="button" onClick={runAnalysis} className="text-sm px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
-                Retry
-              </button>
+              <button type="button" onClick={runAnalysis} className="text-sm px-4 py-2 rounded-lg border border-[var(--border)]">Retry</button>
             </motion.div>
           ) : report ? (
-            <motion.div
-              key="results"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4 }}
-              className="space-y-6"
-            >
-              {/* Location hero + score */}
+            <motion.div key="results" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+
+              {/* Location + score */}
               <div className="grid md:grid-cols-5 gap-4">
-                <motion.div
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="md:col-span-3 relative rounded-3xl border border-[var(--border)] overflow-hidden bg-gradient-to-br from-indigo-600/20 via-violet-600/10 to-cyan-600/10 backdrop-blur-sm shadow-[0_8px_40px_-12px_rgba(99,102,241,0.35)]"
-                >
-                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImEiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgMGg2MHY2MEgweiIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik0zMCAzMGgxdjFoLTF6IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDMpIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2EpIi8+PC9zdmc+')] opacity-60 pointer-events-none" />
-                  <div className="relative p-6 flex gap-5">
-                    <div className="shrink-0">
-                      {flagUrl ? (
-                        <div className="size-20 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl shadow-black/30 animate-float">
-                          <img src={flagUrl} alt={report.country} className="w-full h-full object-cover" />
-                        </div>
-                      ) : (
-                        <div className="size-20 rounded-2xl bg-white/10 flex items-center justify-center">
-                          <Globe2 className="size-8 text-indigo-300" />
-                        </div>
+                <div className="md:col-span-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+                  <div className="flex gap-4">
+                    <div className="flex flex-col items-center justify-center shrink-0 w-[72px]">
+                      <span className="text-5xl leading-none" role="img" aria-label={report.country}>{flagEmoji}</span>
+                      {report.country_code && (
+                        <span className="text-[10px] font-mono text-[var(--muted)] mt-2 uppercase">{report.country_code}</span>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-300/80 mb-1">Your location</p>
-                      <h1 className="text-2xl md:text-3xl font-bold tracking-tight truncate">
-                        {report.country || "Unknown"}
-                      </h1>
-                      <p className="text-base text-[var(--muted)] mt-1 flex items-center gap-1.5">
-                        <MapPin className="size-3.5 shrink-0 text-cyan-400" />
-                        {[report.city, report.region].filter(Boolean).join(", ") || "City unknown"}
+                      <p className="text-[11px] uppercase tracking-wider text-[var(--muted)]">Detected location</p>
+                      <h1 className="text-xl md:text-2xl font-bold mt-1 truncate">{report.country || "Unknown country"}</h1>
+                      <p className="text-sm text-[var(--muted)] mt-1 flex items-center gap-1.5">
+                        <MapPin className="size-3.5 shrink-0" />
+                        {locationLine || "City unavailable"}
                       </p>
-                      <div className="flex flex-wrap gap-2 mt-4">
-                        {report.timezone && (
-                          <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-white/10 border border-white/10 text-indigo-200">
-                            {report.timezone}
-                          </span>
-                        )}
-                        <span className={cn(
-                          "text-[10px] font-medium px-2.5 py-1 rounded-full border",
-                          report.residential
-                            ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/25"
-                            : "bg-amber-500/15 text-amber-300 border-amber-500/25",
-                        )}>
-                          {report.residential ? "Residential" : "Datacenter"}
+                      <div className="flex flex-wrap gap-2 mt-3 text-[11px]">
+                        {report.timezone && <span className="px-2 py-0.5 rounded-md border border-[var(--border)] text-[var(--muted)]">{report.timezone}</span>}
+                        <span className="px-2 py-0.5 rounded-md border border-[var(--border)] text-[var(--muted)]">
+                          {report.residential ? "Residential IP" : report.datacenter || report.hosting ? "Datacenter IP" : "Network IP"}
                         </span>
+                        {report.asn ? <span className="px-2 py-0.5 rounded-md border border-[var(--border)] font-mono text-[var(--muted)]">AS{report.asn}</span> : null}
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, x: 12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="md:col-span-2 rounded-3xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-sm p-5 flex flex-col items-center justify-center gap-3"
-                >
+                <div className="md:col-span-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 flex flex-col items-center justify-center text-center gap-2">
                   <ScoreRing score={report.score} />
-                  <p className="text-[11px] text-center text-[var(--muted)] leading-relaxed max-w-[180px]">
-                    {report.summary || "Overall privacy & connection health"}
-                  </p>
-                </motion.div>
+                  <p className="text-xs font-medium">{report.status || "Analyzed"}</p>
+                  <p className="text-[11px] text-[var(--muted)] leading-relaxed">{report.summary}</p>
+                </div>
               </div>
 
-              {/* IP bar */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-sm p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6"
-              >
+              {/* How websites see you */}
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
+                <div className="px-5 py-4 border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-black/[0.04] dark:bg-white/[0.06]">
+                      <Eye className="size-4 text-[var(--muted)]" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-semibold">How websites see you</h2>
+                      <p className="text-[12px] text-[var(--muted)] mt-0.5">
+                        Data any site can collect without asking permission
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-4 text-[11px] sm:text-right">
+                    <span><span className="inline-block size-2 rounded-full bg-rose-500 mr-1.5 align-middle" />{exposedCount} fully visible</span>
+                    <span><span className="inline-block size-2 rounded-full bg-emerald-500 mr-1.5 align-middle" />{protectedCount} protected</span>
+                  </div>
+                </div>
+                <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {exposureItems.map(item => (
+                    <ExposureChip key={item.label} {...item} />
+                  ))}
+                </div>
+                <div className="px-5 py-3 border-t border-[var(--border)] flex flex-wrap gap-4 text-[10px] text-[var(--muted)]">
+                  {(Object.entries(exposureLevelMeta) as [ExposureLevel, typeof exposureLevelMeta.exact][]).map(([key, meta]) => (
+                    <span key={key} className="flex items-center gap-1.5">
+                      <span className={cn("size-2 rounded-full", meta.dot)} />
+                      {meta.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* IP */}
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Public IP Address</p>
-                  <p className="font-mono text-lg font-semibold tracking-tight truncate">{report.ip}</p>
-                  <p className="text-[11px] text-[var(--muted)] mt-1 truncate">{report.isp}{report.asn ? ` · AS${report.asn}` : ""}</p>
+                  <p className="text-[11px] uppercase tracking-wide text-[var(--muted)]">Public IP</p>
+                  <p className="font-mono text-base font-semibold mt-0.5 truncate">{report.ip}</p>
+                  <p className="text-[12px] text-[var(--muted)] mt-1 truncate">{report.isp}{report.organization ? ` · ${report.organization}` : ""}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={copyIP}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shrink-0"
-                >
+                <button type="button" onClick={copyIP} className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-[var(--border)] text-xs font-medium hover:bg-black/[0.03] dark:hover:bg-white/[0.04] shrink-0">
                   <Copy className="size-3.5" />
-                  {copied ? "Copied!" : "Copy IP"}
+                  {copied ? "Copied" : "Copy"}
                 </button>
-              </motion.div>
+              </div>
 
-              {/* Security at-a-glance */}
+              {/* Security status — readable, minimal color */}
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--muted)] mb-3 px-1">
-                  Security at a glance
-                </p>
+                <p className="text-[11px] uppercase tracking-wider text-[var(--muted)] mb-2 px-0.5">Security checks</p>
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <SecurityCard
-                    title="WebRTC"
-                    headline={webrtc.headline}
-                    subtitle={webrtc.subtitle}
-                    variant={webrtc.variant}
-                    icon={Wifi}
-                    delay={0.15}
-                  />
-                  <SecurityCard
-                    title="DNS Leak"
-                    headline={dns.headline}
-                    subtitle={dns.subtitle}
-                    variant={dns.variant}
-                    icon={Globe2}
-                    delay={0.2}
-                  />
-                  <SecurityCard
-                    title="Tunnel"
-                    headline={tunnel.headline}
-                    subtitle={tunnel.subtitle}
-                    variant={tunnel.variant}
-                    icon={Shield}
-                    delay={0.25}
-                  />
-                  <SecurityCard
-                    title="IP Reputation"
-                    headline={reputation.headline}
-                    subtitle={reputation.subtitle}
-                    variant={reputation.variant}
-                    icon={ShieldAlert}
-                    delay={0.3}
+                  <StatusCard title="WebRTC" {...webrtcCopy(webrtcStatus)} tone={webrtcTone(webrtcStatus)} />
+                  <StatusCard title="DNS leak" {...dnsCopy(report.dns_leak)} tone={dnsTone(report.dns_leak)} />
+                  <StatusCard title="Connection route" {...tunnelCopy(!!report.vpn, !!report.proxy, !!report.tor)} tone={tunnelTone(!!report.vpn, !!report.proxy, !!report.tor)} />
+                  <StatusCard
+                    title="IP reputation"
+                    status={report.risk_score < 25 ? "Clean" : report.risk_score < 50 ? "Moderate risk" : "Flagged"}
+                    detail={report.risk_score < 25 ? "No major abuse signals on this IP." : `Risk score: ${report.risk_score}%`}
+                    tone={reputationTone(report.risk_score)}
                   />
                 </div>
               </div>
 
-              {/* Quick stats */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.35 }}
-                className="grid grid-cols-3 gap-3"
-              >
+              {/* Quick facts */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
-                  { label: "Browser", value: report.browser || browser?.name || "—", color: "from-violet-500/20 to-violet-500/5 border-violet-500/20" },
-                  { label: "HTTPS", value: report.https ? report.tls_version || "TLS" : "Off", color: report.https ? "from-emerald-500/20 to-emerald-500/5 border-emerald-500/20" : "from-rose-500/20 to-rose-500/5 border-rose-500/20" },
-                  { label: "IPv6", value: report.ipv6 ? "Active" : "Off", color: report.ipv6 ? "from-cyan-500/20 to-cyan-500/5 border-cyan-500/20" : "from-zinc-500/10 to-zinc-500/5 border-[var(--border)]" },
-                ].map(stat => (
-                  <div key={stat.label} className={cn("rounded-xl border p-3 bg-gradient-to-br", stat.color)}>
-                    <p className="text-[9px] uppercase tracking-wider text-[var(--muted)] mb-1">{stat.label}</p>
-                    <p className="text-sm font-semibold truncate">{stat.value}</p>
+                  { label: "Browser", value: report.browser || browser?.name || "—" },
+                  { label: "OS", value: report.operating_system || browser?.os || "—" },
+                  { label: "HTTPS", value: report.https ? (report.tls_version || "Enabled") : "Disabled" },
+                  { label: "IPv6", value: report.ipv6 ? "Active" : "Inactive" },
+                ].map(row => (
+                  <div key={row.label} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5">
+                    <p className="text-[10px] text-[var(--muted)]">{row.label}</p>
+                    <p className="text-[13px] font-medium truncate mt-0.5">{row.value}</p>
                   </div>
                 ))}
-              </motion.div>
+              </div>
 
-              {/* Expandable details */}
-              <div className="space-y-3 pt-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--muted)] px-1">Full report</p>
+              {/* Full report */}
+              <div className="space-y-2 pt-1">
+                <p className="text-[11px] uppercase tracking-wider text-[var(--muted)] px-0.5">Technical details</p>
 
                 {webRTC && (
-                  <Section title="WebRTC details" summary={`${webRTC.status} · ${webRTC.publicIPs.length} public IP(s)`} defaultOpen={webRTC.status === "Leak"}>
-                    <MetricRow label="Status" value={webRTC.status} />
+                  <Section title="WebRTC scan" summary={`${webrtcStatus} · ${webRTC.publicIPs.length} public candidate(s)`} defaultOpen={webrtcStatus === "Leak"}>
+                    <MetricRow label="Status" value={webrtcStatus} />
+                    <MetricRow label="Server report" value={report.webrtc_leak || "—"} />
                     <MetricRow label="Public IPs" value={webRTC.publicIPs.join(", ") || "None"} mono />
                     <MetricRow label="Local IPv4" value={webRTC.localIPv4.join(", ") || "None"} mono />
-                    <MetricRow label="Local IPv6" value={webRTC.localIPv6.join(", ") || "None"} mono />
-                    <MetricRow label="mDNS masking" value={webRTC.mdnsEnabled ? "Active" : "Inactive"} />
-                    <MetricRow label="CGNAT" value={webRTC.cgnat ? "Detected" : "No"} />
+                    <MetricRow label="mDNS" value={webRTC.mdnsEnabled ? "Active" : "Inactive"} />
                   </Section>
                 )}
 
-                <Section title="Connection" summary={`${report.isp} · ${report.asn_type || "Network"}`}>
+                <Section title="Network" summary={`${report.isp || "—"} · ${report.asn_type || "Unknown type"}`}>
+                  <MetricRow label="ISP" value={report.isp} />
                   <MetricRow label="Organization" value={report.organization} />
-                  <MetricRow label="ASN" value={report.asn ? String(report.asn) : "—"} mono />
                   <MetricRow label="Reverse DNS" value={report.reverse_dns || report.hostname} mono />
-                  <MetricRow label="Connection type" value={report.connection_type || "—"} />
+                  <MetricRow label="Coordinates" value={report.latitude && report.longitude ? `${report.latitude.toFixed(2)}, ${report.longitude.toFixed(2)}` : "—"} mono />
                 </Section>
 
-                <Section title="Privacy" summary={`VPN ${report.vpn ? "on" : "off"} · DNS ${report.dns_leak}`}>
-                  <MetricRow label="VPN" value={report.vpn ? "Yes" : "No"} />
-                  <MetricRow label="Proxy" value={report.proxy ? "Yes" : "No"} />
-                  <MetricRow label="Tor" value={report.tor ? "Yes" : "No"} />
-                  <MetricRow label="DNS leak" value={report.dns_leak || "—"} />
+                <Section title="Privacy flags" summary={`VPN ${report.vpn ? "yes" : "no"} · DNS ${report.dns_leak || "unknown"}`}>
+                  <MetricRow label="VPN" value={report.vpn ? "Detected" : "Not detected"} />
+                  <MetricRow label="Proxy" value={report.proxy ? "Detected" : "Not detected"} />
+                  <MetricRow label="Tor" value={report.tor ? "Detected" : "Not detected"} />
+                  <MetricRow label="DNS status" value={report.dns_leak || "Unknown"} />
                   <MetricRow label="Risk score" value={`${report.risk_score}%`} />
                 </Section>
 
-                <Section title="Browser & device" summary={browser ? `${browser.name} · ${browser.os}` : undefined}>
-                  <MetricRow label="Browser" value={report.browser || browser?.name || "—"} />
-                  <MetricRow label="OS" value={report.operating_system || browser?.os || "—"} />
-                  <MetricRow label="Platform" value={browser?.platform || "—"} />
-                  <MetricRow label="Screen" value={browser?.screen || "—"} />
-                  <MetricRow label="Language" value={browser?.language || "—"} />
-                </Section>
-
                 {fingerprint && (
-                  <Section title="Fingerprint" summary={`Canvas · WebGL · ${fingerprint.fonts.length} fonts`}>
+                  <Section title="Fingerprint" summary="Tracking identifiers">
                     <MetricRow label="Canvas" value={fingerprint.canvas} mono />
-                    <MetricRow label="WebGL" value={fingerprint.webglRenderer} />
-                    <MetricRow label="Audio" value={fingerprint.audio} mono />
+                    <MetricRow label="WebGL vendor" value={fingerprint.webglVendor} />
+                    <MetricRow label="WebGL renderer" value={fingerprint.webglRenderer} />
+                    <MetricRow label="Audio hash" value={fingerprint.audio} mono />
                   </Section>
                 )}
 
-                <Section title="Encryption" summary={report.https ? "Secured" : "Not secured"}>
+                <Section title="TLS / HTTPS" summary={report.https ? "Encrypted" : "Not encrypted"}>
                   <MetricRow label="HTTPS" value={report.https ? "Yes" : "No"} />
-                  <MetricRow label="TLS" value={report.tls_version || "—"} />
+                  <MetricRow label="TLS version" value={report.tls_version || "—"} />
+                  <MetricRow label="HTTP version" value={report.http_version || "—"} />
                   <MetricRow label="HSTS" value={report.hsts ? "Yes" : "No"} />
                   <MetricRow label="Certificate" value={report.cert_issuer || "—"} />
                 </Section>
 
                 {Object.keys(services).length > 0 && (
-                  <Section title="Services" summary="Reachability check">
+                  <Section title="Service reachability" summary="External access test">
                     {Object.entries(services).map(([name, status]) => (
                       <MetricRow key={name} label={name} value={status} />
                     ))}
@@ -575,12 +491,12 @@ export default function Home() {
           <span>© {new Date().getFullYear()} {branding.copyright_text || branding.name}</span>
           <div className="flex items-center gap-4">
             {branding.documentation_url && (
-              <a href={branding.documentation_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 hover:text-[var(--fg)] transition-colors">
+              <a href={branding.documentation_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 hover:text-[var(--fg)]">
                 Docs <ArrowUpRight className="size-3" />
               </a>
             )}
             {branding.github_url && (
-              <a href={branding.github_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 hover:text-[var(--fg)] transition-colors">
+              <a href={branding.github_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 hover:text-[var(--fg)]">
                 GitHub <ArrowUpRight className="size-3" />
               </a>
             )}

@@ -6,7 +6,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   async rewrites() {
-    return [];
+    const backend = process.env.BACKEND_URL ?? "http://localhost:8080";
+    return [
+      { source: "/api/:path*", destination: `${backend}/api/:path*` },
+    ];
   },
 };
 

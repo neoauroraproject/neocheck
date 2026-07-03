@@ -303,7 +303,7 @@ export default function Home() {
             </div>
             <div>
               <span className="text-xs font-black uppercase tracking-wider text-slate-100">{branding.name}</span>
-              <span className="hidden sm:inline text-[10px] font-mono text-slate-500 ml-2">// SYSTEM.DIAGNOSTICS_CORE.v1</span>
+              <span className="hidden sm:inline text-[10px] font-mono text-slate-500 ml-2">{"// SYSTEM.DIAGNOSTICS_CORE.v1"}</span>
             </div>
           </div>
           
@@ -885,7 +885,7 @@ export default function Home() {
 
       <footer className="border-t border-white/[0.05] mt-auto bg-[#070709]">
         <div className="mx-auto max-w-7xl px-6 py-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-slate-500">
-          <span>© {new Date().getFullYear()} {branding.copyright_text || branding.name} // SECURE ENCRYPTED NODE</span>
+          <span>© {new Date().getFullYear()} {branding.copyright_text || branding.name} {"// SECURE ENCRYPTED NODE"}</span>
           <div className="flex gap-4">
             {branding.github_url && (
               <a href={branding.github_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-slate-200 transition-colors">

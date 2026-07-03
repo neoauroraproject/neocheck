@@ -3,12 +3,14 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci || npm install
 COPY . .
+# public/ is gitignored locally; ensure the directory exists for CI Docker builds
+RUN mkdir -p public
 RUN npm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
-ENV NODE_ENV production
-ENV PORT 3000
+ENV NODE_ENV=production
+ENV PORT=3000
 COPY --from=builder /app/next.config.ts ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./

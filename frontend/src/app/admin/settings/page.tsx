@@ -3,6 +3,13 @@
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Save, ShieldAlert, Cpu, Eye, EyeOff } from "lucide-react"
+import {
+  AdminButton,
+  AdminCard,
+  AdminInput,
+  AdminLoading,
+  AdminPageHeader,
+} from "@/components/admin/admin-shell"
 
 interface ConfigData {
   server: {
@@ -104,47 +111,34 @@ export default function AdminSettings() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500"></div>
-      </div>
-    )
-  }
+  if (loading) return <AdminLoading />
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-extrabold tracking-tight">System Settings</h1>
-        <p className="text-zinc-400 text-sm mt-1">Configure branding, backend routing, security credentials, and active engine features</p>
-      </div>
+    <div className="space-y-5 sm:space-y-6">
+      <AdminPageHeader
+        title="System Settings"
+        description="Branding, server routing, security, and engine features"
+      />
 
-      <form onSubmit={handleSave} className="space-y-8 max-w-4xl">
-        {/* Branding Section */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
-          <div>
-            <h2 className="text-xl font-bold">Branding Settings</h2>
-            <p className="text-zinc-400 text-xs mt-0.5">Customize client UI appearance and links</p>
-          </div>
+      <form onSubmit={handleSave} className="space-y-5 max-w-3xl">
+        <AdminCard>
+          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-4">Branding</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <AdminInput
+              label="Brand name"
+              type="text"
+              required
+              value={config?.branding.name || ""}
+              onChange={e => setConfig({ ...config!, branding: { ...config!.branding, name: e.target.value } })}
+            />
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Brand Name</label>
-              <input
-                type="text"
-                required
-                value={config?.branding.name || ""}
-                onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, name: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Subtitle</label>
+              <label className="text-[11px] uppercase tracking-wider text-zinc-500">Subtitle</label>
               <input
                 type="text"
                 required
                 value={config?.branding.subtitle || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, subtitle: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1">
@@ -153,7 +147,7 @@ export default function AdminSettings() {
                 type="text"
                 value={config?.branding.logo || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, logo: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1">
@@ -162,7 +156,7 @@ export default function AdminSettings() {
                 type="text"
                 value={config?.branding.public_url || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, public_url: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1">
@@ -171,7 +165,7 @@ export default function AdminSettings() {
                 type="text"
                 value={config?.branding.favicon || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, favicon: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1">
@@ -180,7 +174,7 @@ export default function AdminSettings() {
                 type="text"
                 value={config?.branding.primary_color || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, primary_color: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1">
@@ -189,7 +183,7 @@ export default function AdminSettings() {
                 type="text"
                 value={config?.branding.accent_color || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, accent_color: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1">
@@ -198,7 +192,7 @@ export default function AdminSettings() {
                 type="text"
                 value={config?.branding.footer_text || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, footer_text: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1">
@@ -207,7 +201,7 @@ export default function AdminSettings() {
                 type="text"
                 value={config?.branding.copyright_text || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, copyright_text: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1">
@@ -216,7 +210,7 @@ export default function AdminSettings() {
                 type="text"
                 value={config?.branding.support_url || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, support_url: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1">
@@ -225,7 +219,7 @@ export default function AdminSettings() {
                 type="text"
                 value={config?.branding.github_url || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, github_url: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1 md:col-span-2">
@@ -234,18 +228,14 @@ export default function AdminSettings() {
                 type="text"
                 value={config?.branding.documentation_url || ""}
                 onChange={(e) => setConfig({ ...config!, branding: { ...config!.branding, documentation_url: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
           </div>
-        </div>
+        </AdminCard>
 
-        {/* Server & SSL Section */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
-          <div>
-            <h2 className="text-xl font-bold">Server & SSL</h2>
-            <p className="text-zinc-400 text-xs mt-0.5">Configure host, port, and security keys</p>
-          </div>
+        <AdminCard>
+          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-4">Server & SSL</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Host Binding</label>
@@ -254,7 +244,7 @@ export default function AdminSettings() {
                 required
                 value={config?.server.host || ""}
                 onChange={(e) => setConfig({ ...config!, server: { ...config!.server, host: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1">
@@ -264,12 +254,12 @@ export default function AdminSettings() {
                 required
                 value={config?.server.port || ""}
                 onChange={(e) => setConfig({ ...config!, server: { ...config!.server, port: parseInt(e.target.value) } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
           </div>
 
-          <div className="pt-4 border-t border-zinc-800 space-y-4">
+          <div className="pt-4 border-t border-white/[0.06] space-y-4">
             <div className="flex items-center gap-3">
               <input
                 type="checkbox"
@@ -290,7 +280,7 @@ export default function AdminSettings() {
                     required
                     value={config?.ssl.cert_path || ""}
                     onChange={(e) => setConfig({ ...config!, ssl: { ...config!.ssl, cert_path: e.target.value } })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                    className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
                   />
                 </div>
                 <div className="space-y-1">
@@ -300,20 +290,16 @@ export default function AdminSettings() {
                     required
                     value={config?.ssl.key_path || ""}
                     onChange={(e) => setConfig({ ...config!, ssl: { ...config!.ssl, key_path: e.target.value } })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                    className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
                   />
                 </div>
               </div>
             )}
           </div>
-        </div>
+        </AdminCard>
 
-        {/* Engine Features Section */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
-          <div>
-            <h2 className="text-xl font-bold">Engine Features</h2>
-            <p className="text-zinc-400 text-xs mt-0.5">Toggle active pipeline detectors on public checks</p>
-          </div>
+        <AdminCard>
+          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-4">Engine features</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
@@ -323,7 +309,7 @@ export default function AdminSettings() {
               { label: "Active Service Availability", key: "service_check" },
               { label: "Fraud & Risk Analysis", key: "fraud_check" },
             ].map((f) => (
-              <div key={f.key} className="flex items-center gap-3 p-3 bg-zinc-950 border border-zinc-850 rounded-xl">
+              <div key={f.key} className="flex items-center gap-3 p-3 bg-black/20 border border-white/[0.06] rounded-xl">
                 <input
                   type="checkbox"
                   id={f.key}
@@ -338,14 +324,10 @@ export default function AdminSettings() {
               </div>
             ))}
           </div>
-        </div>
+        </AdminCard>
 
-        {/* Admin Credentials */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
-          <div>
-            <h2 className="text-xl font-bold">Admin Credentials</h2>
-            <p className="text-zinc-400 text-xs mt-0.5">Change master admin sign-in user and password</p>
-          </div>
+        <AdminCard>
+          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-4">Admin credentials</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Username</label>
@@ -354,7 +336,7 @@ export default function AdminSettings() {
                 required
                 value={config?.admin.username || ""}
                 onChange={(e) => setConfig({ ...config!, admin: { ...config!.admin, username: e.target.value } })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 focus:outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-white/[0.15]"
               />
             </div>
             <div className="space-y-1">
@@ -377,18 +359,13 @@ export default function AdminSettings() {
               </div>
             </div>
           </div>
-        </div>
+        </AdminCard>
 
-        {/* Submit */}
         <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex items-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-800 text-zinc-100 font-semibold rounded-xl shadow-lg shadow-violet-900/10 active:scale-[0.98] transition-all"
-          >
-            <Save className="w-4 h-4" />
-            {saving ? "Saving settings..." : "Save Settings"}
-          </button>
+          <AdminButton type="submit" variant="primary" disabled={saving}>
+            <Save className="size-4" />
+            {saving ? "Saving…" : "Save settings"}
+          </AdminButton>
         </div>
       </form>
     </div>

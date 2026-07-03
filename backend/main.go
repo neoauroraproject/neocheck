@@ -71,7 +71,7 @@ func main() {
 	}
 	defer detectionHandler.Shutdown()
 
-	logger.Info("Starting NeoCheck Backend", zap.String("version", "1.0.0"))
+	logger.Info("Starting NeoCheck Backend", zap.String("version", "2.1.0"))
 
 	// Initialize Gin
 	gin.SetMode(gin.ReleaseMode)
@@ -91,7 +91,7 @@ func main() {
 		api.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{
 				"status":  "ok",
-				"version": "1.0.0",
+				"version": "2.1.0",
 			})
 		})
 		

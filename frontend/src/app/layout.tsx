@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NeoCheck — Connection Diagnostics",
-  description: "Minimal network and privacy diagnostics for your connection.",
+  title: "NeoCheck — Privacy & Fingerprint Intelligence",
+  description: "What does a website currently know about you? Leak detection, signal consistency, and privacy education.",
 };
 
 export default function RootLayout({

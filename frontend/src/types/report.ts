@@ -83,13 +83,48 @@ export interface FingerprintData {
   fonts: string[]
 }
 
+export interface ICECandidateEntry {
+  ip: string
+  type: string
+  protocol?: string
+  category: "public" | "private" | "host" | "stun" | "turn"
+}
+
 export interface WebRTCData {
   status: "Safe" | "Partial" | "Leak" | "Scanning" | "Unsupported"
   localIPv4: string[]
   localIPv6: string[]
   publicIPs: string[]
+  iceCandidates: ICECandidateEntry[]
   mdnsEnabled: boolean
   cgnat: boolean
+}
+
+export interface EnvironmentSignals {
+  timezone: string
+  locale: string
+  languages: string[]
+  hardwareConcurrency: number
+  deviceMemory: number | null
+  touchSupport: boolean
+  colorDepth: number
+  doNotTrack: string | null
+  cookiesEnabled: boolean
+  localStorage: boolean
+  sessionStorage: boolean
+  currencyLocale: string
+  clockOffsetMinutes: number
+  webgpu: "available" | "unavailable"
+  batteryApi: boolean
+  clipboardApi: boolean
+  bluetoothApi: boolean
+  usbApi: boolean
+  mediaDevicesCount: number
+  permissionsApi: boolean
+  javascriptEnabled: boolean
+  webglSupported: boolean
+  architecture: string
+  userAgent: string
 }
 
 export interface BrowserDetails {

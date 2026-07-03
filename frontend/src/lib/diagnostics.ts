@@ -1,6 +1,8 @@
 import type {
   BrowserDetails,
+  EnvironmentSignals,
   FingerprintData,
+  ICECandidateEntry,
   ServiceStatus,
   WebRTCData,
 } from "@/types/report"
@@ -81,6 +83,27 @@ export function getAudioFingerprint(): Promise<string> {
   })
 }
 
+function isPrivateIPv4(ip: string): boolean {
+  if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(ip)) return false
+  if (ip.startsWith("10.") || ip.startsWith("192.168.")) return true
+  if (ip.startsWith("172.")) {
+    const second = parseInt(ip.split(".")[1], 10)
+    return second >= 16 && second <= 31
+  }
+  return false
+}
+
+function categorizeIceCandidate(type: string, ip: string): ICECandidateEntry["category"] {
+  if (ip.endsWith(".local")) return "host"
+  if (type === "relay") return "turn"
+  if (type === "srflx") return "stun"
+  if (type === "host" && isPrivateIPv4(ip)) return "private"
+  if (type === "host") return "host"
+  if (type === "srflx" || type === "relay") return "public"
+  if (isPrivateIPv4(ip)) return "private"
+  return "host"
+}
+
 function checkFont(fontName: string): boolean {
   try {
     const canvas = document.createElement("canvas")
@@ -150,21 +173,133 @@ export async function detectBrowserDetails(): Promise<BrowserDetails> {
   }
 }
 
+export function collectEnvironmentSignals(): EnvironmentSignals {
+  if (typeof window === "undefined") {
+    return emptyEnvironment()
+  }
+
+  let localStorageOk = false
+  let sessionStorageOk = false
+  try {
+    localStorage.setItem("_nc", "1")
+    localStorage.removeItem("_nc")
+    localStorageOk = true
+  } catch { /* blocked */ }
+  try {
+    sessionStorage.setItem("_nc", "1")
+    sessionStorage.removeItem("_nc")
+    sessionStorageOk = true
+  } catch { /* blocked */ }
+
+  const nav = navigator as Navigator & { deviceMemory?: number; usb?: unknown; bluetooth?: unknown }
+  let webgpu: EnvironmentSignals["webgpu"] = "unavailable"
+  try {
+    if ("gpu" in navigator) webgpu = "available"
+  } catch { /* noop */ }
+
+  let currencyLocale = "—"
+  try {
+    currencyLocale = Intl.NumberFormat().resolvedOptions().locale || "—"
+  } catch { /* noop */ }
+
+  const clockOffsetMinutes = -new Date().getTimezoneOffset()
+
+  return {
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown",
+    locale: navigator.language || "Unknown",
+    languages: [...(navigator.languages || [])],
+    hardwareConcurrency: navigator.hardwareConcurrency || 0,
+    deviceMemory: nav.deviceMemory ?? null,
+    touchSupport: "ontouchstart" in window || navigator.maxTouchPoints > 0,
+    colorDepth: window.screen?.colorDepth || 0,
+    doNotTrack: navigator.doNotTrack ?? null,
+    cookiesEnabled: navigator.cookieEnabled,
+    localStorage: localStorageOk,
+    sessionStorage: sessionStorageOk,
+    currencyLocale,
+    clockOffsetMinutes,
+    webgpu,
+    batteryApi: "getBattery" in navigator,
+    clipboardApi: !!navigator.clipboard,
+    bluetoothApi: "bluetooth" in nav,
+    usbApi: "usb" in nav,
+    mediaDevicesCount: 0,
+    permissionsApi: "permissions" in navigator,
+    javascriptEnabled: true,
+    webglSupported: !!document.createElement("canvas").getContext("webgl"),
+    architecture: (nav as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || "—",
+    userAgent: navigator.userAgent,
+  }
+}
+
+function emptyEnvironment(): EnvironmentSignals {
+  return {
+    timezone: "—",
+    locale: "—",
+    languages: [],
+    hardwareConcurrency: 0,
+    deviceMemory: null,
+    touchSupport: false,
+    colorDepth: 0,
+    doNotTrack: null,
+    cookiesEnabled: false,
+    localStorage: false,
+    sessionStorage: false,
+    currencyLocale: "—",
+    clockOffsetMinutes: 0,
+    webgpu: "unavailable",
+    batteryApi: false,
+    clipboardApi: false,
+    bluetoothApi: false,
+    usbApi: false,
+    mediaDevicesCount: 0,
+    permissionsApi: false,
+    javascriptEnabled: true,
+    webglSupported: false,
+    architecture: "—",
+    userAgent: "—",
+  }
+}
+
+export async function enrichEnvironmentSignals(base: EnvironmentSignals): Promise<EnvironmentSignals> {
+  if (typeof window === "undefined") return base
+  let mediaDevicesCount = 0
+  try {
+    if (navigator.mediaDevices?.enumerateDevices) {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      mediaDevicesCount = devices.length
+    }
+  } catch { /* blocked */ }
+  return { ...base, mediaDevicesCount }
+}
+
 export function scanWebRTC(currentPublicIP: string, isVpn: boolean): Promise<WebRTCData> {
   return new Promise((resolve) => {
     if (typeof window === "undefined" || !window.RTCPeerConnection) {
-      resolve({ status: "Unsupported", localIPv4: [], localIPv6: [], publicIPs: [], mdnsEnabled: false, cgnat: false })
+      resolve({
+        status: "Unsupported",
+        localIPv4: [],
+        localIPv6: [],
+        publicIPs: [],
+        iceCandidates: [],
+        mdnsEnabled: false,
+        cgnat: false,
+      })
       return
     }
 
     const localIPv4s: string[] = []
     const localIPv6s: string[] = []
     const publicIPs: string[] = []
+    const iceCandidates: ICECandidateEntry[] = []
     let mdnsEnabled = false
     let cgnat = false
 
     const rtc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" },
+      ],
     })
 
     rtc.createDataChannel("")
@@ -172,12 +307,24 @@ export function scanWebRTC(currentPublicIP: string, isVpn: boolean): Promise<Web
 
     const finish = () => {
       let status: WebRTCData["status"] = "Safe"
+      const extraPublic = publicIPs.filter(ip => ip !== currentPublicIP)
       if (localIPv4s.length > 0 || localIPv6s.length > 0) status = "Partial"
-      if (publicIPs.some(ip => ip !== currentPublicIP) || (publicIPs.length > 0 && isVpn)) status = "Leak"
-      resolve({ status, localIPv4: localIPv4s, localIPv6: localIPv6s, publicIPs, mdnsEnabled, cgnat })
+      if (extraPublic.length > 0 || (publicIPs.length > 0 && isVpn && publicIPs.some(ip => ip !== currentPublicIP))) {
+        status = "Leak"
+      }
+      if (publicIPs.length > 1) status = "Leak"
+      resolve({
+        status,
+        localIPv4: localIPv4s,
+        localIPv6: localIPv6s,
+        publicIPs,
+        iceCandidates,
+        mdnsEnabled,
+        cgnat,
+      })
     }
 
-    const timeout = setTimeout(() => { rtc.close(); finish() }, 2500)
+    const timeout = setTimeout(() => { rtc.close(); finish() }, 3500)
 
     rtc.onicecandidate = (event) => {
       if (!event.candidate) return
@@ -185,19 +332,27 @@ export function scanWebRTC(currentPublicIP: string, isVpn: boolean): Promise<Web
       if (parts.length < 8) return
       const ip = parts[4]
       const type = parts[7]
+      const protocol = parts[2]
+
+      iceCandidates.push({ ip, type, protocol, category: categorizeIceCandidate(type, ip) })
+
       if (ip.endsWith(".local")) mdnsEnabled = true
 
       const isIPv4 = /^(?:\d{1,3}\.){3}\d{1,3}$/.test(ip)
-      const isPrivateIPv4 = isIPv4 && (
-        ip.startsWith("10.") || ip.startsWith("192.168.") ||
-        (ip.startsWith("172.") && parseInt(ip.split(".")[1], 10) >= 16 && parseInt(ip.split(".")[1], 10) <= 31)
-      )
+      const isIPv6 = ip.includes(":")
+      const isPrivate = isPrivateIPv4(ip)
       if (isIPv4 && ip.startsWith("100.")) {
         const second = parseInt(ip.split(".")[1], 10)
         if (second >= 64 && second <= 127) cgnat = true
       }
-      if (isPrivateIPv4 && !localIPv4s.includes(ip)) localIPv4s.push(ip)
-      if (!ip.endsWith(".local") && !isPrivateIPv4 && type === "srflx" && !publicIPs.includes(ip)) {
+      if (isPrivate && !localIPv4s.includes(ip)) localIPv4s.push(ip)
+      if (isIPv6 && !ip.endsWith(".local") && (ip.startsWith("fe80") || ip.startsWith("fc") || ip.startsWith("fd"))) {
+        if (!localIPv6s.includes(ip)) localIPv6s.push(ip)
+      }
+      if (isIPv6 && !ip.startsWith("fe80") && !ip.startsWith("fc") && !ip.startsWith("fd") && !localIPv6s.includes(ip)) {
+        localIPv6s.push(ip)
+      }
+      if (!ip.endsWith(".local") && !isPrivate && (type === "srflx" || type === "relay") && isIPv4 && !publicIPs.includes(ip)) {
         publicIPs.push(ip)
       }
     }
@@ -242,6 +397,7 @@ export async function collectClientDiagnostics(publicIP: string, isVpn: boolean)
   webRTC: WebRTCData
   browser: BrowserDetails
   services: Record<string, ServiceStatus>
+  environment: EnvironmentSignals
 }> {
   const [browser, audio, webRTC, services] = await Promise.all([
     detectBrowserDetails(),
@@ -250,6 +406,7 @@ export async function collectClientDiagnostics(publicIP: string, isVpn: boolean)
     runServiceChecks(isVpn),
   ])
   const webgl = getWebGLFingerprint()
+  const environment = await enrichEnvironmentSignals(collectEnvironmentSignals())
   return {
     fingerprint: {
       canvas: getCanvasFingerprint(),
@@ -261,5 +418,6 @@ export async function collectClientDiagnostics(publicIP: string, isVpn: boolean)
     webRTC,
     browser,
     services,
+    environment,
   }
 }

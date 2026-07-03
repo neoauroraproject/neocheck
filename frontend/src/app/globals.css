@@ -6,19 +6,19 @@
 }
 
 :root {
-  --bg: #f8fafc;
-  --fg: #0f172a;
-  --muted: #64748b;
-  --border: #e2e8f0;
+  --bg: #fafafa;
+  --fg: #18181b;
+  --muted: #71717a;
+  --border: #e4e4e7;
   --surface: #ffffff;
 }
 
 .dark {
-  --bg: #0a0a0c;
-  --fg: #f1f5f9;
-  --muted: #94a3b8;
-  --border: rgba(255, 255, 255, 0.1);
-  --surface: rgba(255, 255, 255, 0.04);
+  --bg: #09090b;
+  --fg: #fafafa;
+  --muted: #a1a1aa;
+  --border: rgba(255, 255, 255, 0.08);
+  --surface: #111113;
 }
 
 body {
@@ -28,5 +28,5 @@ body {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--fg) 12%, transparent);
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
 }

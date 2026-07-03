@@ -195,12 +195,19 @@ generate_config() {
     # Determine Public URL
     if [ "$SSL_ENABLED" = "true" ]; then
         PUBLIC_URL="https://$PUBLIC_ADDRESS"
+        log_info "Copying SSL certificates to internal storage..."
+        cp "$SSL_CERT" "$INSTALL_DIR/ssl/server.crt"
+        cp "$SSL_KEY" "$INSTALL_DIR/ssl/server.key"
+        CONFIG_SSL_CERT="/opt/neocheck/ssl/server.crt"
+        CONFIG_SSL_KEY="/opt/neocheck/ssl/server.key"
     else
         if [ "$SERVER_PORT" = "80" ]; then
             PUBLIC_URL="http://$PUBLIC_ADDRESS"
         else
             PUBLIC_URL="http://$PUBLIC_ADDRESS:$SERVER_PORT"
         fi
+        CONFIG_SSL_CERT=""
+        CONFIG_SSL_KEY=""
     fi
 
     cat <<EOF > "$INSTALL_DIR/config/config.yaml"
@@ -222,8 +229,8 @@ branding:
   public_url: "$PUBLIC_URL"
 ssl:
   enabled: $SSL_ENABLED
-  cert_path: "$SSL_CERT"
-  key_path: "$SSL_KEY"
+  cert_path: "$CONFIG_SSL_CERT"
+  key_path: "$CONFIG_SSL_KEY"
 admin:
   username: "$ADMIN_USER"
   password_hash: "$HASHED_PASS"

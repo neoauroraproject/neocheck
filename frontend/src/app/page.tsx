@@ -14,6 +14,7 @@ import type {
   ConnectionReport,
   EnvironmentSignals,
   FingerprintData,
+  ServiceStatus,
   WebRTCData,
 } from "@/types/report"
 
@@ -60,6 +61,7 @@ function HomeContent() {
   const [webRTC, setWebRTC] = useState<WebRTCData | null>(null)
   const [browser, setBrowser] = useState<BrowserDetails | null>(null)
   const [environment, setEnvironment] = useState<EnvironmentSignals | null>(null)
+  const [services, setServices] = useState<Record<string, ServiceStatus>>({})
 
   useEffect(() => {
     fetch("/api/branding")
@@ -80,6 +82,7 @@ function HomeContent() {
       setWebRTC(client.webRTC)
       setBrowser(client.browser)
       setEnvironment(client.environment)
+      setServices(client.services)
       setReport(data)
     } catch {
       setError(tr("error"))
@@ -163,6 +166,7 @@ function HomeContent() {
                 fingerprint={fingerprint}
                 webRTC={webRTC}
                 environment={environment}
+                services={services}
                 onCopyIp={copyIP}
                 copied={copied}
               />

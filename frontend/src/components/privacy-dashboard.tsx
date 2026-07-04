@@ -39,6 +39,7 @@ import type {
   EnvironmentSignals,
   FingerprintData,
   FraudProviderInsight,
+  ServiceStatus,
   TLSLayerInfo,
   TLSDiagnostics,
   WebRTCData,
@@ -726,6 +727,7 @@ export function PrivacyDashboard({
   fingerprint,
   webRTC,
   environment,
+  services,
   onCopyIp,
   copied,
 }: {
@@ -734,6 +736,7 @@ export function PrivacyDashboard({
   fingerprint: FingerprintData | null
   webRTC: WebRTCData | null
   environment: EnvironmentSignals | null
+  services?: Record<string, ServiceStatus>
   onCopyIp: () => void
   copied: boolean
 }) {
@@ -750,13 +753,17 @@ export function PrivacyDashboard({
 
   const data = useMemo(() => {
     const leaks = analyzeLeaks(report, webRTC, env)
-    return runPrivacyPlatformAnalysis({ report, browser, fingerprint, webRTC, environment: env, leaks })
-  }, [report, browser, fingerprint, webRTC, env])
+    return runPrivacyPlatformAnalysis({ report, browser, fingerprint, webRTC, environment: env, leaks, services })
+  }, [report, browser, fingerprint, webRTC, env, services])
 
   const metrics = useMemo(() => buildMetrics(report, data.leak.verdict, tr), [report, data.leak.verdict, tr])
 
   const visVisible = data.visibility.filter(v => v.level === "visible").length
   const visPartial = data.visibility.filter(v => v.level === "partial").length
+  const liveStreamChecks = data.streaming.filter(s => s.source === "live").length
+  const streamingSubtitle = tr("streamingSubtitle")
+    .replace("{live}", String(liveStreamChecks))
+    .replace("{total}", String(data.streaming.length))
   const locationLine = [report.city, report.region, report.country].filter(Boolean).join(", ") || "—"
   const screenRes = browser?.screen || data.visibility.find(v => v.id === "screen")?.value || "—"
   const localTime = formatLocalTime(env.timezone, locale)
@@ -900,14 +907,19 @@ export function PrivacyDashboard({
         </div>
       </Accordion>
 
-      <Accordion title={tr("sectionStreaming")} subtitle={`${data.streaming.length} services estimated`}>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pt-4">
+      <Accordion title={tr("sectionStreaming")} subtitle={streamingSubtitle}>
+        <p className="text-xs text-nc-muted leading-relaxed pt-3">{tr("streamingExplain")}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-4">
           {data.streaming.map(s => (
-            <div key={s.id} className="rounded-xl border border-nc-divider bg-nc-inset px-3 py-2.5">
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-xs text-nc-secondary truncate">{s.name}</span>
+            <div key={s.id} className="rounded-xl border border-nc-divider bg-nc-inset px-3 py-2.5 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-nc-secondary truncate">{s.name}</span>
                 <CompatPill level={s.level} />
               </div>
+              <p className="text-[11px] text-nc-muted leading-relaxed">{tr(s.reasonKey)}</p>
+              <p className="text-[10px] text-nc-faint">
+                {s.source === "live" ? tr("streamSourceLive") : tr("streamSourceEstimate")}
+              </p>
             </div>
           ))}
         </div>

@@ -12,6 +12,7 @@ import type {
   EnvironmentSignals,
   FingerprintData,
   ICECandidateEntry,
+  ServiceStatus,
   WebRTCData,
 } from "@/types/report"
 
@@ -60,6 +61,7 @@ export interface StreamingService {
   name: string
   level: CompatLevel
   reasonKey: TranslationKey
+  source: "live" | "estimate"
 }
 
 export interface NetworkReputation {
@@ -202,34 +204,87 @@ const STREAMING_SERVICES = [
   "Steam", "Epic Games", "PlayStation", "Xbox", "Telegram Voice", "Discord Voice",
 ]
 
+const LIVE_CHECK_SERVICES = new Set(["ChatGPT", "Netflix", "Spotify"])
+const STRICT_STREAMING = new Set(["Netflix", "Disney+", "Prime Video"])
+const STRICT_GAMING = new Set(["PlayStation", "Xbox"])
+const AI_SERVICES = new Set(["ChatGPT", "Gemini", "Claude", "Copilot"])
+const LENIENT_SERVICES = new Set(["Spotify", "Steam", "Epic Games", "Telegram Voice", "Discord Voice"])
+
+function liveCheckLevel(status: ServiceStatus | undefined): CompatLevel | null {
+  if (!status) return null
+  if (status === "Accessible" || status === "Reachable" || status === "Network Accessible") return "likely"
+  if (status === "Blocked" || status === "Restricted") return "limited"
+  return null
+}
+
 function estimateStreaming(
   name: string,
   report: ConnectionReport,
   consistency: number,
   leakVerdict: LeakVerdict,
-): { level: CompatLevel; reasonKey: TranslationKey } {
-  const strict = ["Netflix", "Disney+", "Prime Video", "PlayStation", "Xbox"]
-  const ai = ["ChatGPT", "Gemini", "Claude", "Copilot"]
+  services?: Record<string, ServiceStatus>,
+): { level: CompatLevel; reasonKey: TranslationKey; source: "live" | "estimate" } {
+  if (LIVE_CHECK_SERVICES.has(name)) {
+    const live = liveCheckLevel(services?.[name])
+    if (live === "likely") {
+      return { level: "likely", reasonKey: "streamReasonLiveOk", source: "live" }
+    }
+    if (live === "limited") {
+      return { level: "limited", reasonKey: "streamReasonLiveBlocked", source: "live" }
+    }
+  }
+
+  if (report.tor) {
+    if (LENIENT_SERVICES.has(name)) {
+      return { level: "unknown", reasonKey: "streamReasonTunnel", source: "estimate" }
+    }
+    return { level: "limited", reasonKey: "streamReasonTor", source: "estimate" }
+  }
 
   if (leakVerdict === "critical") {
-    return { level: "limited", reasonKey: "streamReasonLeak" }
+    return { level: "limited", reasonKey: "streamReasonLeak", source: "estimate" }
   }
-  if (consistency < 50) {
-    return { level: "limited", reasonKey: "streamReasonInconsistent" }
+
+  if (consistency < 45) {
+    return { level: "limited", reasonKey: "streamReasonInconsistent", source: "estimate" }
   }
-  if (report.datacenter && strict.includes(name)) {
-    return { level: "limited", reasonKey: "streamReasonHosting" }
+
+  if (report.vpn || report.proxy) {
+    if (STRICT_STREAMING.has(name) || STRICT_GAMING.has(name) || AI_SERVICES.has(name)) {
+      return { level: "unknown", reasonKey: "streamReasonTunnel", source: "estimate" }
+    }
+    if (LENIENT_SERVICES.has(name) && consistency >= 55) {
+      return { level: "likely", reasonKey: "streamReasonVpnLenient", source: "estimate" }
+    }
+    return { level: "unknown", reasonKey: "streamReasonTunnel", source: "estimate" }
   }
-  if ((report.vpn || report.proxy) && strict.includes(name)) {
-    return { level: "unknown", reasonKey: "streamReasonTunnel" }
+
+  const hosting = report.datacenter || report.hosting
+  if (hosting) {
+    if (AI_SERVICES.has(name)) {
+      return { level: "limited", reasonKey: "streamReasonDatacenter", source: "estimate" }
+    }
+    if (STRICT_STREAMING.has(name) || STRICT_GAMING.has(name)) {
+      return { level: "limited", reasonKey: "streamReasonHosting", source: "estimate" }
+    }
+    if (LENIENT_SERVICES.has(name)) {
+      return { level: "likely", reasonKey: "streamReasonLenientHosting", source: "estimate" }
+    }
   }
-  if (ai.includes(name) && report.datacenter) {
-    return { level: "limited", reasonKey: "streamReasonDatacenter" }
+
+  if (report.mobile && LENIENT_SERVICES.has(name) && leakVerdict === "clear") {
+    return { level: "likely", reasonKey: "streamReasonMobile", source: "estimate" }
   }
-  if (consistency >= 75 && leakVerdict === "clear") {
-    return { level: "likely", reasonKey: "streamReasonOk" }
+
+  if (report.residential && leakVerdict === "clear" && consistency >= 65) {
+    return { level: "likely", reasonKey: "streamReasonOk", source: "estimate" }
   }
-  return { level: "unknown", reasonKey: "streamReasonUnknown" }
+
+  if (consistency >= 70 && leakVerdict === "clear" && !hosting) {
+    return { level: "likely", reasonKey: "streamReasonOk", source: "estimate" }
+  }
+
+  return { level: "unknown", reasonKey: "streamReasonUnknown", source: "estimate" }
 }
 
 function buildRecommendations(
@@ -350,8 +405,9 @@ export function runPrivacyPlatformAnalysis(input: {
   webRTC: WebRTCData | null
   environment: EnvironmentSignals
   leaks: LeakFinding[]
+  services?: Record<string, ServiceStatus>
 }): PrivacyPlatformAnalysis {
-  const { report, browser, fingerprint, webRTC, environment, leaks } = input
+  const { report, browser, fingerprint, webRTC, environment, leaks, services } = input
 
   const consistency = analyzeConsistency(report, browser, webRTC, environment)
   const signalIssues = buildSignalIssues(report, browser, webRTC, environment)
@@ -363,8 +419,14 @@ export function runPrivacyPlatformAnalysis(input: {
   const privacyScore = computePrivacyScore(consistency.score, leakMeta.verdict, fp.level, report.risk_score)
 
   const streaming = STREAMING_SERVICES.map(name => {
-    const est = estimateStreaming(name, report, consistency.score, leakMeta.verdict)
-    return { id: name.toLowerCase().replace(/\s+/g, "-"), name, level: est.level, reasonKey: est.reasonKey }
+    const est = estimateStreaming(name, report, consistency.score, leakMeta.verdict, services)
+    return {
+      id: name.toLowerCase().replace(/\s+/g, "-"),
+      name,
+      level: est.level,
+      reasonKey: est.reasonKey,
+      source: est.source,
+    }
   })
 
   const residentialConf = report.residential ? 85 : report.mobile ? 70 : report.datacenter ? 15 : 50

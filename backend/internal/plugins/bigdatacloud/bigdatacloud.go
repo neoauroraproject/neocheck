@@ -35,6 +35,22 @@ func (p *BigDataCloudProvider) Initialize(cfg *config.Config) error {
 	return nil
 }
 
+type bdcHazardReport struct {
+	IsKnownAsTorServer       bool `json:"isKnownAsTorServer"`
+	IsKnownAsVpn             bool `json:"isKnownAsVpn"`
+	IsKnownAsProxy           bool `json:"isKnownAsProxy"`
+	IsSpamhausDrop           bool `json:"isSpamhausDrop"`
+	IsSpamhausEdrop          bool `json:"isSpamhausEdrop"`
+	IsSpamhausAsnDrop        bool `json:"isSpamhausAsnDrop"`
+	IsBlacklistedUceprotect  bool `json:"isBlacklistedUceprotect"`
+	IsBlacklistedBlocklistDe bool `json:"isBlacklistedBlocklistDe"`
+	IsBogon                  bool `json:"isBogon"`
+	IsUnreachable            bool `json:"isUnreachable"`
+	HostingLikelihood        int  `json:"hostingLikelihood"`
+	IsHostingAsn             bool `json:"isHostingAsn"`
+	IsCellular               bool `json:"isCellular"`
+}
+
 type bdcResponse struct {
 	SecurityThreat string `json:"securityThreat"`
 	Network        struct {
@@ -43,14 +59,7 @@ type bdcResponse struct {
 			Name string `json:"name"`
 		} `json:"carrier"`
 	} `json:"network"`
-	HazardReport struct {
-		IsKnownAsTorServer bool `json:"isKnownAsTorServer"`
-		IsKnownAsVpn       bool `json:"isKnownAsVpn"`
-		IsKnownAsProxy     bool `json:"isKnownAsProxy"`
-		HostingLikelihood  int  `json:"hostingLikelihood"`
-		IsHostingAsn       bool `json:"isHostingAsn"`
-		IsCellular         bool `json:"isCellular"`
-	} `json:"hazardReport"`
+	HazardReport bdcHazardReport `json:"hazardReport"`
 }
 
 func (p *BigDataCloudProvider) Check(ctx context.Context, req *report.Request) (any, error) {
@@ -110,15 +119,7 @@ func (p *BigDataCloudProvider) Check(ctx context.Context, req *report.Request) (
 		}
 	}
 
-	riskScore := h.HostingLikelihood * 10
-	if vpn || proxy || tor {
-		if riskScore < 50 {
-			riskScore = 50
-		}
-	}
-	if riskScore > 100 {
-		riskScore = 100
-	}
+	riskScore := computeFraudScore(data.SecurityThreat, h, vpn, proxy, tor)
 
 	residential := !hosting && !vpn && !proxy && !tor && !mobile && h.HostingLikelihood < 4
 
@@ -138,6 +139,58 @@ func (p *BigDataCloudProvider) Check(ctx context.Context, req *report.Request) (
 		Queried:               true,
 		ClassificationSignals: signals,
 	}, nil
+}
+
+func computeFraudScore(securityThreat string, h bdcHazardReport, vpn, proxy, tor bool) int {
+	score := 0
+	bump := func(points int) {
+		if points > score {
+			score = points
+		}
+	}
+	add := func(points int) {
+		score += points
+	}
+
+	if h.IsSpamhausDrop || h.IsSpamhausEdrop || h.IsSpamhausAsnDrop {
+		add(45)
+	}
+	if h.IsBlacklistedUceprotect || h.IsBlacklistedBlocklistDe {
+		add(40)
+	}
+	if h.IsBogon || h.IsUnreachable {
+		add(25)
+	}
+	if tor || h.IsKnownAsTorServer {
+		bump(55)
+	}
+	if vpn || h.IsKnownAsVpn {
+		bump(35)
+	}
+	if proxy || h.IsKnownAsProxy {
+		bump(28)
+	}
+
+	threat := strings.ToLower(strings.TrimSpace(securityThreat))
+	if threat != "" && threat != "unknown" {
+		switch {
+		case strings.Contains(threat, "blacklist"), strings.Contains(threat, "spamhaus"), strings.Contains(threat, "abuse"):
+			bump(60)
+		case strings.Contains(threat, "tor"):
+			bump(55)
+		case strings.Contains(threat, "vpn"):
+			bump(35)
+		case strings.Contains(threat, "proxy"):
+			bump(28)
+		default:
+			bump(22)
+		}
+	}
+
+	if score > 100 {
+		return 100
+	}
+	return score
 }
 
 func asnType(hosting, mobile, residential bool) string {

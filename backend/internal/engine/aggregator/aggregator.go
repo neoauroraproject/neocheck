@@ -64,7 +64,10 @@ func (a *Aggregator) Build(req *report.Request, results []pipeline.ResultWrapper
 			rep.CGNAT = rep.CGNAT || data.CGNAT
 			rep.CarrierClass = data.CarrierClass
 			
-			if data.RiskScore > 0 {
+			if data.Queried {
+				totalRiskScore += data.RiskScore
+				fraudProvidersCount++
+			} else if data.RiskScore > 0 {
 				totalRiskScore += data.RiskScore
 				fraudProvidersCount++
 			}

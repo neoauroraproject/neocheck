@@ -1,11 +1,12 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Check,
   ChevronDown,
   Copy,
+  Eye,
   Globe,
   KeyRound,
   Languages,
@@ -162,49 +163,96 @@ function evLabel(key: string, tr: (k: TranslationKey) => string): string {
   return text || key.replace(/^ev/, "").replace(/([A-Z])/g, " $1").trim()
 }
 
+function narrativeHighlight(className?: string) {
+  return cn("text-nc-primary font-medium", className)
+}
+
+function WebsitePerspectiveCard({
+  report,
+  browser,
+  connectionTypeKey,
+}: {
+  report: ConnectionReport
+  browser: BrowserDetails | null
+  connectionTypeKey: TranslationKey
+}) {
+  const { tr, locale } = useLocale()
+
+  const browserName = browser?.name
+    ? `${browser.name}${browser.version ? ` ${browser.version}` : ""}`
+    : report.browser
+      ? `${report.browser}${report.browser_version ? ` ${report.browser_version}` : ""}`
+      : tr("websiteFallbackBrowser")
+  const osName = browser?.os || report.operating_system || tr("websiteFallbackOs")
+  const ip = report.ip || "—"
+  const location = [report.city, report.region, report.country].filter(Boolean).join(", ") || tr("websiteFallbackLocation")
+  const connType = tr(connectionTypeKey)
+  const isp = report.isp || report.organization || tr("websiteFallbackIsp")
+  const Hi = ({ children, mono }: { children: ReactNode; mono?: boolean }) => (
+    <span className={narrativeHighlight(mono ? "font-mono" : undefined)}>{children}</span>
+  )
+
+  return (
+    <Card className="h-full flex flex-col justify-center">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="size-8 rounded-full bg-violet-500/10 text-violet-400 flex items-center justify-center shrink-0">
+          <Eye className="size-4" strokeWidth={2} />
+        </div>
+        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-nc-muted">{tr("websitePerspectiveTitle")}</p>
+      </div>
+      <p className="text-base sm:text-lg leading-relaxed sm:leading-8 text-nc-muted">
+        {locale === "fa" ? (
+          <>
+            {tr("websiteNarrativeLead")} <Hi>{browserName}</Hi> {tr("websiteNarrativeOn")} <Hi>{osName}</Hi>،{" "}
+            {tr("websiteNarrativeUsingIp")} <Hi mono>{ip}</Hi> {tr("websiteNarrativeFrom")} <Hi>{location}</Hi>{" "}
+            {tr("websiteNarrativeSee")} <Hi>{connType}</Hi> {tr("websiteNarrativeConnection")} <Hi>{isp}</Hi>{" "}
+            {tr("websiteNarrativeEnd")}
+          </>
+        ) : (
+          <>
+            {tr("websiteNarrativeLead")} <Hi>{browserName}</Hi> {tr("websiteNarrativeOn")} <Hi>{osName}</Hi>,{" "}
+            {tr("websiteNarrativeUsingIp")} <Hi mono>{ip}</Hi> {tr("websiteNarrativeFrom")} <Hi>{location}</Hi>.{" "}
+            {tr("websiteNarrativeSee")} <Hi>{connType}</Hi> {tr("websiteNarrativeConnection")} <Hi>{isp}</Hi>
+            {tr("websiteNarrativeEnd")}
+          </>
+        )}
+      </p>
+    </Card>
+  )
+}
+
 function ConnectionClassificationPanel({ data }: { data: ConnectionClassification }) {
   const { tr } = useLocale()
   const [open, setOpen] = useState(false)
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-nc-muted">{tr("connectionType")}</p>
-          <p className="text-xl font-semibold text-nc-primary mt-1">{tr(data.label_key as TranslationKey)}</p>
-          <p className="text-sm text-nc-muted mt-1">
-            {tr("classificationConfidence")}: <span className="font-semibold tabular-nums text-nc-secondary">{data.confidence}%</span>
-          </p>
+    <Card className="h-full flex flex-col" padding={false}>
+      <div className="p-4 sm:p-5 flex-1 flex flex-col">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-nc-faint">{tr("connectionType")}</p>
+            <p className="text-lg font-semibold text-nc-primary mt-1 leading-snug">{tr(data.label_key as TranslationKey)}</p>
+          </div>
+          {data.provider_count > 0 && (
+            <span className="text-[10px] text-nc-faint px-2 py-0.5 rounded-full border border-nc-divider bg-nc-inset shrink-0">
+              {data.provider_count} src
+            </span>
+          )}
         </div>
-        {data.provider_count > 0 && (
-          <span className="text-[11px] text-nc-faint px-2.5 py-1 rounded-full border border-nc-divider bg-nc-inset">
-            {data.provider_count} provider{data.provider_count > 1 ? "s" : ""}
-          </span>
-        )}
+
+        <p className="text-xs text-nc-muted">
+          {tr("classificationConfidence")}: <span className="font-semibold tabular-nums text-nc-secondary">{data.confidence}%</span>
+        </p>
+
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          className="flex items-center gap-1.5 text-xs text-violet-500 hover:text-violet-400 transition-colors mt-auto pt-4"
+        >
+          <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
+          {tr("classificationWhy")}
+        </button>
       </div>
-
-      {data.evidence?.length > 0 && (
-        <div className="mb-4">
-          <p className="text-[10px] uppercase tracking-wider text-nc-faint mb-2">Evidence</p>
-          <ul className="space-y-1.5">
-            {data.evidence.map((item, i) => (
-              <li key={`${item.key}-${i}`} className="flex items-start gap-2 text-sm text-nc-muted">
-                <Check className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                {evLabel(item.key, tr)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        className="flex items-center gap-2 text-sm text-violet-500 hover:text-violet-400 transition-colors"
-      >
-        <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
-        {tr("classificationWhy")}
-      </button>
 
       <AnimatePresence initial={false}>
         {open && (
@@ -214,32 +262,49 @@ function ConnectionClassificationPanel({ data }: { data: ConnectionClassificatio
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden"
+            className="overflow-hidden border-t border-nc-divider"
           >
-            <div className="pt-4 mt-4 border-t border-nc-divider space-y-3">
-              <p className="text-[10px] uppercase tracking-wider text-nc-faint">{tr("classificationProviders")}</p>
-              {(data.providers ?? []).filter(p => p.id !== "neocheck").map(provider => (
-                <div key={provider.id} className="rounded-xl border border-nc-divider bg-nc-inset px-3.5 py-3">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <p className="text-sm font-medium text-nc-secondary">{provider.name}</p>
-                    <span className={cn(
-                      "text-[10px] px-2 py-0.5 rounded-full border",
-                      provider.queried ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/10" : "text-nc-faint border-nc-divider",
-                    )}>
-                      {provider.queried ? "Live" : provider.active ? "Active" : "Off"}
-                    </span>
-                  </div>
-                  {(provider.signals ?? []).length > 0 ? (
-                    <ul className="space-y-1">
-                      {(provider.signals ?? []).map((sig, i) => (
-                        <li key={`${provider.id}-${sig.key}-${i}`} className="text-xs text-nc-muted">· {evLabel(sig.key, tr)}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-nc-faint">{tr("classificationNoProvider")}</p>
-                  )}
+            <div className="p-4 sm:p-5 space-y-4">
+              {data.evidence?.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-nc-faint mb-2">Evidence</p>
+                  <ul className="space-y-1">
+                    {data.evidence.map((item, i) => (
+                      <li key={`${item.key}-${i}`} className="flex items-start gap-2 text-xs text-nc-muted">
+                        <Check className="size-3 text-emerald-500 shrink-0 mt-0.5" />
+                        {evLabel(item.key, tr)}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
+              )}
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-nc-faint mb-2">{tr("classificationProviders")}</p>
+                <div className="space-y-2">
+                  {(data.providers ?? []).filter(p => p.id !== "neocheck").map(provider => (
+                    <div key={provider.id} className="rounded-lg border border-nc-divider bg-nc-inset px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <p className="text-xs font-medium text-nc-secondary">{provider.name}</p>
+                        <span className={cn(
+                          "text-[10px] px-1.5 py-0.5 rounded-full border",
+                          provider.queried ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/10" : "text-nc-faint border-nc-divider",
+                        )}>
+                          {provider.queried ? "Live" : provider.active ? "Active" : "Off"}
+                        </span>
+                      </div>
+                      {(provider.signals ?? []).length > 0 ? (
+                        <ul className="space-y-0.5">
+                          {(provider.signals ?? []).map((sig, i) => (
+                            <li key={`${provider.id}-${sig.key}-${i}`} className="text-[11px] text-nc-muted">· {evLabel(sig.key, tr)}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-[11px] text-nc-faint">{tr("classificationNoProvider")}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
@@ -734,29 +799,34 @@ export function PrivacyDashboard({
               <p className={cn("text-base font-semibold", statusTone)}>{tr(data.overview.connectionStatusKey)}</p>
               <p className="text-xs text-nc-faint mt-1 leading-relaxed line-clamp-2">{tr(data.overview.summaryKey)}</p>
             </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="rounded-xl border border-nc-divider bg-nc-inset px-3.5 py-3 min-w-0">
-                <p className="text-[10px] uppercase tracking-wider text-nc-faint mb-1">{tr("heroIspAsn")}</p>
-                <p className="text-sm text-nc-secondary truncate">{report.isp || "—"}</p>
-                <p className="text-xs text-nc-muted ltr-mono mt-0.5">{report.asn ? `AS${report.asn}` : "—"}</p>
-              </div>
-              <div className="rounded-xl border border-nc-divider bg-nc-inset px-3.5 py-3 min-w-0">
-                <p className="text-[10px] uppercase tracking-wider text-nc-faint mb-1">{tr("connectionType")}</p>
-                <p className="text-sm font-medium text-nc-secondary">
-                  {tr((report.connection_classification?.label_key || data.overview.connectionTypeKey) as TranslationKey)}
-                </p>
-                <p className="text-xs text-nc-muted mt-0.5 tabular-nums">
-                  {tr("classificationConfidence")}: {report.connection_classification?.confidence ?? "—"}%
-                </p>
-              </div>
+            <div className="rounded-xl border border-nc-divider bg-nc-inset px-3.5 py-3 min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-nc-faint mb-1">{tr("heroIspAsn")}</p>
+              <p className="text-sm text-nc-secondary truncate">{report.isp || "—"}</p>
+              <p className="text-xs text-nc-muted ltr-mono mt-0.5">{report.asn ? `AS${report.asn}` : "—"}</p>
             </div>
           </div>
         </div>
       </Card>
 
-      {report.connection_classification && (
-        <ConnectionClassificationPanel data={report.connection_classification} />
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)] gap-3 sm:gap-4 items-stretch">
+        {report.connection_classification ? (
+          <ConnectionClassificationPanel data={report.connection_classification} />
+        ) : (
+          <Card className="h-full" padding={false}>
+            <div className="p-4 sm:p-5">
+              <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-nc-faint">{tr("connectionType")}</p>
+              <p className="text-lg font-semibold text-nc-primary mt-1">
+                {tr(data.overview.connectionTypeKey)}
+              </p>
+            </div>
+          </Card>
+        )}
+        <WebsitePerspectiveCard
+          report={report}
+          browser={browser}
+          connectionTypeKey={(report.connection_classification?.label_key || data.overview.connectionTypeKey) as TranslationKey}
+        />
+      </div>
 
       {/* 8 metric cards — 4×2 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">

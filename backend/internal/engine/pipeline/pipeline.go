@@ -46,8 +46,17 @@ func New(cfg *config.Config) (*Pipeline, error) {
 	return p, nil
 }
 
+func (p *Pipeline) syncProviders() {
+	cfg := config.Get()
+	for _, prov := range p.providers {
+		_ = prov.Initialize(cfg)
+	}
+}
+
 // Execute runs all initialized providers concurrently against the given Request.
 func (p *Pipeline) Execute(ctx context.Context, req *report.Request) []ResultWrapper {
+	p.syncProviders()
+
 	var wg sync.WaitGroup
 	results := make([]ResultWrapper, len(p.providers))
 

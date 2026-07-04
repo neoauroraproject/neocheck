@@ -427,6 +427,9 @@ function FraudProvidersPanel({ providers }: { providers: FraudProviderInsight[] 
             status = tr("fraudLiveCheck")
             statusClass = "text-emerald-500"
             score = `${provider.risk_score}/100`
+          } else if (provider.implemented) {
+            status = tr("fraudAwaitingCheck")
+            statusClass = "text-amber-500"
           }
 
           return (

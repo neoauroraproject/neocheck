@@ -158,7 +158,8 @@ function layerTlsDisplay(layer: TLSLayerInfo, tr: (key: TranslationKey) => strin
 }
 
 function evLabel(key: string, tr: (k: TranslationKey) => string): string {
-  return tr(key as TranslationKey)
+  const text = tr(key as TranslationKey)
+  return text || key.replace(/^ev/, "").replace(/([A-Z])/g, " $1").trim()
 }
 
 function ConnectionClassificationPanel({ data }: { data: ConnectionClassification }) {
@@ -182,12 +183,12 @@ function ConnectionClassificationPanel({ data }: { data: ConnectionClassificatio
         )}
       </div>
 
-      {data.evidence.length > 0 && (
+      {data.evidence?.length > 0 && (
         <div className="mb-4">
           <p className="text-[10px] uppercase tracking-wider text-nc-faint mb-2">Evidence</p>
           <ul className="space-y-1.5">
-            {data.evidence.map(item => (
-              <li key={item.key} className="flex items-start gap-2 text-sm text-nc-muted">
+            {data.evidence.map((item, i) => (
+              <li key={`${item.key}-${i}`} className="flex items-start gap-2 text-sm text-nc-muted">
                 <Check className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
                 {evLabel(item.key, tr)}
               </li>
@@ -208,14 +209,16 @@ function ConnectionClassificationPanel({ data }: { data: ConnectionClassificatio
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
+            key="classification-why"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden"
           >
             <div className="pt-4 mt-4 border-t border-nc-divider space-y-3">
               <p className="text-[10px] uppercase tracking-wider text-nc-faint">{tr("classificationProviders")}</p>
-              {data.providers.filter(p => p.id !== "neocheck").map(provider => (
+              {(data.providers ?? []).filter(p => p.id !== "neocheck").map(provider => (
                 <div key={provider.id} className="rounded-xl border border-nc-divider bg-nc-inset px-3.5 py-3">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <p className="text-sm font-medium text-nc-secondary">{provider.name}</p>
@@ -226,10 +229,10 @@ function ConnectionClassificationPanel({ data }: { data: ConnectionClassificatio
                       {provider.queried ? "Live" : provider.active ? "Active" : "Off"}
                     </span>
                   </div>
-                  {provider.signals.length > 0 ? (
+                  {(provider.signals ?? []).length > 0 ? (
                     <ul className="space-y-1">
-                      {provider.signals.map(sig => (
-                        <li key={sig.key} className="text-xs text-nc-muted">· {evLabel(sig.key, tr)}</li>
+                      {(provider.signals ?? []).map((sig, i) => (
+                        <li key={`${provider.id}-${sig.key}-${i}`} className="text-xs text-nc-muted">· {evLabel(sig.key, tr)}</li>
                       ))}
                     </ul>
                   ) : (
@@ -459,6 +462,7 @@ function Accordion({ title, subtitle, children }: { title: string; subtitle?: st
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
+            key="accordion-panel"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

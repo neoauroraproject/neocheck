@@ -30,6 +30,10 @@
 - **🎯 Reverse DNS (rDNS):** Resolves the hostname associated with your IP.
 - **📊 Health Score:** Provides an overall connection health score (0-100).
 
+<div align="center">
+  <p>Official Demo: <a href="https://ip.hmray.pro">IP.HMRAY.PRO</a></p>
+</div>
+
 ### 🚀 1-Click Installation (Ubuntu Server)
 Deploy NeoCheck on your server in seconds. The installer handles Docker, configurations, and startup automatically.
 
@@ -87,6 +91,17 @@ curl -fsSL https://raw.githubusercontent.com/neoauroraproject/neocheck/master/in
 - **مشاهده لاگ‌ها:** `docker compose logs -f`
 
 ---
+
 <div align="center">
-  <i>NeoCheck is open-source software licensed under the MIT License.</i>
+
+### 💖 Donation / حمایت مالی
+
+**USDT (BEP20):** `0xacA935a5955a756BedaE4738304274EdeE0223D5`
+
+</div>
+
+<div align="center">
+   <p>Released under the MIT License</p>
+  <p><strong>Crafted with ♥ by the HMPanel Team</strong></p>
+  <p>Official Telegram: <a href="https://t.me/neoaurora">@neoaurora</a> | GitHub: <a href="https://github.com/neoauroraproject/">neoauroraproject</a></p>
 </div>

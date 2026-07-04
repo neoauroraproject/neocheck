@@ -1,6 +1,7 @@
 package detection
 
 import (
+	"crypto/tls"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -45,16 +46,34 @@ func (h *Handler) CheckIP(c *gin.Context) {
 	}
 
 	tlsVersion := ""
+	directTLSVersion := ""
+	directTLSCipher := ""
+	directTLSALPN := ""
 	if c.Request.TLS != nil {
-		tlsVersion = "TLS" // We can parse version from c.Request.TLS.Version
+		switch c.Request.TLS.Version {
+		case 0x0304:
+			directTLSVersion = "TLS 1.3"
+		case 0x0303:
+			directTLSVersion = "TLS 1.2"
+		case 0x0302:
+			directTLSVersion = "TLS 1.1"
+		case 0x0301:
+			directTLSVersion = "TLS 1.0"
+		}
+		directTLSCipher = tls.CipherSuiteName(c.Request.TLS.CipherSuite)
+		directTLSALPN = c.Request.TLS.NegotiatedProtocol
+		tlsVersion = directTLSVersion
 	}
 
 	req := &report.Request{
-		IP:          clientIP,
-		UserAgent:   userAgent,
-		Headers:     headers,
-		HTTPVersion: httpVersion,
-		TLSVersion:  tlsVersion,
+		IP:               clientIP,
+		UserAgent:        userAgent,
+		Headers:          headers,
+		HTTPVersion:      httpVersion,
+		TLSVersion:       tlsVersion,
+		DirectTLSVersion: directTLSVersion,
+		DirectTLSCipher:  directTLSCipher,
+		DirectTLSALPN:    directTLSALPN,
 	}
 
 	// 2. Execute the Immutable Pipeline
@@ -62,7 +81,14 @@ func (h *Handler) CheckIP(c *gin.Context) {
 	results := h.pipeline.Execute(c.Request.Context(), req)
 
 	// 3. Aggregate results into the final ConnectionReport
+	cfg := config.Get()
 	finalReport := h.aggregator.Build(req, results)
+	finalReport.FraudCheckEnabled = cfg.Features.FraudCheck
+	finalReport.FraudProviders = BuildFraudProviderInsights(cfg, results)
+
+	sec := extractSecurityResult(results)
+	tlsDiag := BuildTLSDiagnostics(c.Request, sec)
+	ApplyTLSDiagnostics(finalReport, tlsDiag)
 
 	// 4. Return unified JSON
 	c.JSON(http.StatusOK, finalReport)

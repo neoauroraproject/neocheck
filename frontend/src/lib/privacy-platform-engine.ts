@@ -156,6 +156,19 @@ function vis(
   return { id, labelKey, value, level, whyKey }
 }
 
+function tlsVisibilityValue(report: ConnectionReport): string {
+  const diag = report.tls_diagnostics
+  if (diag?.client.tls_version) return diag.client.tls_version
+  if (diag?.client.label) return diag.client.label
+  if (report.tls_version && !report.tls_version.startsWith("tls")) return report.tls_version
+  if (diag?.client.encrypted) return "tlsProxyHandled"
+  return "—"
+}
+
+function httpVisibilityValue(report: ConnectionReport): string {
+  return report.tls_diagnostics?.client.http_version || report.http_version || "—"
+}
+
 function levelFromBool(yes: boolean, partial = false): VisibilityLevel {
   if (yes) return "visible"
   if (partial) return "partial"
@@ -317,10 +330,10 @@ function buildVisibilityFields(
     vis("media", "visMedia", String(env.mediaDevicesCount), levelFromBool(env.mediaDevicesCount > 0, env.permissionsApi), "whyMedia"),
     vis("perm", "visPermissions", env.permissionsApi ? "Supported" : "Unavailable", levelFromBool(env.permissionsApi), "whyPermissions"),
     vis("js", "visJs", "Enabled", "visible", "whyJs"),
-    vis("tls", "visTls", report.tls_version || "—", "visible", "whyTls"),
-    vis("http", "visHttp", report.http_version || "—", "visible", "whyHttp"),
-    vis("alpn", "visAlpn", report.alpn || "—", levelFromBool(!!report.alpn), "whyAlpn"),
-    vis("cipher", "visCipher", report.cipher_suite?.slice(0, 32) || "—", "visible", "whyCipher"),
+    vis("tls", "visTls", tlsVisibilityValue(report), report.https || report.tls_diagnostics?.client.encrypted ? "visible" : "partial", "whyTls"),
+    vis("http", "visHttp", httpVisibilityValue(report), "visible", "whyHttp"),
+    vis("alpn", "visAlpn", report.alpn || report.tls_diagnostics?.client.alpn || "—", levelFromBool(!!report.alpn || !!report.tls_diagnostics?.client.alpn), "whyAlpn"),
+    vis("cipher", "visCipher", (report.cipher_suite || report.tls_diagnostics?.client.cipher_suite || "—").slice(0, 32), levelFromBool(!!report.cipher_suite || !!report.tls_diagnostics?.client.cipher_suite), "whyCipher"),
     vis("v4", "visIpv4", report.ipv4 ? "Yes" : "No", levelFromBool(report.ipv4), "whyIpv4"),
     vis("v6", "visIpv6", report.ipv6 ? "Yes" : "No", levelFromBool(report.ipv6), "whyIpv6"),
   ]
@@ -396,10 +409,13 @@ export function runPrivacyPlatformAnalysis(input: {
       {
         titleKey: "advTls",
         rows: [
-          { label: "TLS", value: report.tls_version || "—" },
-          { label: "Cipher", value: report.cipher_suite || "—" },
-          { label: "ALPN", value: report.alpn || "—" },
+          { label: "Client TLS", value: tlsVisibilityValue(report) },
+          { label: "Client HTTP", value: httpVisibilityValue(report) },
+          { label: "Backend TLS", value: report.tls_diagnostics?.backend.tls_version || report.tls_diagnostics?.backend.label || "—" },
+          { label: "Cipher", value: report.cipher_suite || report.tls_diagnostics?.client.cipher_suite || "—" },
+          { label: "ALPN", value: report.alpn || report.tls_diagnostics?.client.alpn || "—" },
           { label: "HSTS", value: report.hsts ? "Yes" : "No" },
+          { label: "Proxy", value: report.tls_diagnostics?.behind_reverse_proxy ? "Yes" : "No" },
         ],
       },
       {

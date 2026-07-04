@@ -48,6 +48,7 @@ type ConnectionReport struct {
 	CertExpiration string `json:"cert_expiration"`
 	PFS            bool   `json:"pfs"`
 	SecureContext  bool   `json:"secure_context"`
+	TLSDiagnostics TLSDiagnostics `json:"tls_diagnostics"`
 
 	// Leaks & Advanced Detection
 	WebRTC     bool   `json:"webrtc"`
@@ -55,8 +56,10 @@ type ConnectionReport struct {
 	DNSLeak    string `json:"dns_leak"`    // "Safe", "Leak", "Unknown"
 
 	// Fraud & Risk Flags
-	RiskScore    int    `json:"risk_score"` // 0-100 aggregated risk
-	Hosting      bool   `json:"hosting"`
+	RiskScore         int                    `json:"risk_score"` // 0-100 aggregated risk
+	FraudCheckEnabled bool                   `json:"fraud_check_enabled"`
+	FraudProviders    []FraudProviderInsight `json:"fraud_providers"`
+	Hosting           bool                   `json:"hosting"`
 	VPN          bool   `json:"vpn"`
 	Proxy        bool   `json:"proxy"`
 	Tor          bool   `json:"tor"`
@@ -81,9 +84,12 @@ type ConnectionReport struct {
 
 // Request represents the incoming detection parameters extracted from the HTTP request.
 type Request struct {
-	IP          string
-	UserAgent   string
-	Headers     map[string]string
-	HTTPVersion string
-	TLSVersion  string
+	IP               string
+	UserAgent        string
+	Headers          map[string]string
+	HTTPVersion      string
+	TLSVersion       string
+	DirectTLSVersion string
+	DirectTLSCipher  string
+	DirectTLSALPN    string
 }

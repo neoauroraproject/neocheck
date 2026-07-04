@@ -63,6 +63,10 @@ type SecurityResult struct {
 	CertExpiration string `json:"cert_expiration"`
 	PFS            bool   `json:"pfs"`
 	SecureContext  bool   `json:"secure_context"`
+	HSTSHeader     string `json:"hsts_header"`
+	AltSvc         string `json:"alt_svc"`
+	HTTP3Available bool   `json:"http3_available"`
+	Source         string `json:"source"` // outbound_probe | local | unavailable
 }
 
 // DNSResult is returned by the DNS leak plugin

@@ -41,43 +41,40 @@ func (p *SecurityProvider) Initialize(cfg *config.Config) error {
 }
 
 func (p *SecurityProvider) Check(ctx context.Context, req *report.Request) (any, error) {
-	// Default result for offline or non-TLS environments
 	res := report.SecurityResult{
-		HTTPS:          false,
-		HTTPVersion:    req.HTTPVersion,
-		TLSVersion:     "None",
-		CipherSuite:    "None",
-		ALPN:           "None",
-		HSTS:           false,
-		OCSPStapling:   false,
-		CertIssuer:     "None",
-		CertExpiration: "None",
-		PFS:            false,
-		SecureContext:  true, // Handled client-side, default true
+		HTTPS:         false,
+		HTTPVersion:   normalizeHTTPVersion(req.HTTPVersion),
+		SecureContext: true,
+		Source:        "unavailable",
 	}
 
-	host := req.Headers["Host"]
-	if host == "" {
-		host = req.Headers["host"]
+	// Direct TLS on the incoming request (no reverse proxy).
+	if req.DirectTLSVersion != "" {
+		res.HTTPS = true
+		res.TLSVersion = req.DirectTLSVersion
+		res.CipherSuite = req.DirectTLSCipher
+		res.ALPN = req.DirectTLSALPN
+		res.Source = "direct"
 	}
+
+	if proto := strings.ToLower(header(req.Headers, "X-Forwarded-Proto", "X-Forwarded-Scheme")); proto == "https" {
+		res.HTTPS = true
+	}
+
+	host := header(req.Headers, "Host", "host")
 	if host == "" {
 		return res, nil
 	}
 
-	// Strip port if present
-	if strings.Contains(host, ":") {
-		h, _, err := net.SplitHostPort(host)
-		if err == nil {
-			host = h
-		}
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
 	}
 
-	// If running locally, don't perform external TLS check
-	if host == "localhost" || host == "127.0.0.1" || strings.HasPrefix(host, "192.168.") || strings.HasPrefix(host, "10.") || host == "::1" {
+	if isLocalHost(host) {
+		res.Source = "local"
 		return res, nil
 	}
 
-	// Make a quick HEAD request to the public endpoint to inspect headers and TLS state
 	targetURL := fmt.Sprintf("https://%s/api/health", host)
 	httpReq, err := http.NewRequestWithContext(ctx, "HEAD", targetURL, nil)
 	if err != nil {
@@ -86,7 +83,6 @@ func (p *SecurityProvider) Check(ctx context.Context, req *report.Request) (any,
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
-		// Fallback try without /api/health (root)
 		targetURL = fmt.Sprintf("https://%s/", host)
 		httpReq, err = http.NewRequestWithContext(ctx, "HEAD", targetURL, nil)
 		if err != nil {
@@ -100,19 +96,15 @@ func (p *SecurityProvider) Check(ctx context.Context, req *report.Request) (any,
 	defer resp.Body.Close()
 
 	res.HTTPS = true
-	res.HTTPVersion = resp.Proto
+	res.HTTPVersion = normalizeHTTPVersion(resp.Proto)
+	res.Source = "outbound_probe"
 
 	if resp.TLS != nil {
 		state := *resp.TLS
-		res.TLSVersion = getTLSVersionName(state.Version)
+		res.TLSVersion = tlsVersionName(state.Version)
 		res.CipherSuite = tls.CipherSuiteName(state.CipherSuite)
 		res.ALPN = state.NegotiatedProtocol
-		if res.ALPN == "" {
-			res.ALPN = "None"
-		}
 		res.OCSPStapling = len(state.OCSPResponse) > 0
-		
-		// Check PFS
 		res.PFS = isCipherPFS(state.CipherSuite) || state.Version == tls.VersionTLS13
 
 		if len(state.PeerCertificates) > 0 {
@@ -125,14 +117,51 @@ func (p *SecurityProvider) Check(ctx context.Context, req *report.Request) (any,
 		}
 	}
 
-	// Check HSTS
 	hstsHeader := resp.Header.Get("Strict-Transport-Security")
 	res.HSTS = hstsHeader != ""
+	res.HSTSHeader = hstsHeader
+
+	res.AltSvc = resp.Header.Get("Alt-Svc")
+	res.HTTP3Available = strings.Contains(strings.ToLower(res.AltSvc), "h3=")
 
 	return res, nil
 }
 
-func getTLSVersionName(v uint16) string {
+func header(headers map[string]string, names ...string) string {
+	for _, name := range names {
+		for k, v := range headers {
+			if strings.EqualFold(k, name) && strings.TrimSpace(v) != "" {
+				return strings.TrimSpace(v)
+			}
+		}
+	}
+	return ""
+}
+
+func isLocalHost(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "::1" ||
+		strings.HasPrefix(host, "192.168.") || strings.HasPrefix(host, "10.")
+}
+
+func normalizeHTTPVersion(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	lower := strings.ToLower(raw)
+	switch {
+	case strings.Contains(lower, "3"):
+		return "HTTP/3"
+	case strings.Contains(lower, "2"):
+		return "HTTP/2"
+	case strings.Contains(lower, "1.1"):
+		return "HTTP/1.1"
+	default:
+		return raw
+	}
+}
+
+func tlsVersionName(v uint16) string {
 	switch v {
 	case tls.VersionTLS10:
 		return "TLS 1.0"

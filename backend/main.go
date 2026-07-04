@@ -98,6 +98,10 @@ func main() {
 		api.GET("/branding", func(c *gin.Context) {
 			c.JSON(200, config.Get().Branding)
 		})
+
+		api.GET("/capabilities", func(c *gin.Context) {
+			c.JSON(200, detection.BuildPublicCapabilities(config.Get()))
+		})
 		
 		api.GET("/check", middleware.RateLimit(), detectionHandler.CheckIP)
 	}

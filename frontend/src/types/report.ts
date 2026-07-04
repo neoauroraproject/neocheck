@@ -8,6 +8,58 @@ export interface ScoreBreakdown {
   compatibility: number
 }
 
+export interface FraudProviderInsight {
+  id: string
+  name: string
+  active: boolean
+  queried: boolean
+  implemented: boolean
+  risk_score?: number
+  error?: string
+}
+
+export interface TLSLayerInfo {
+  role: "client" | "backend"
+  encrypted: boolean
+  http_version: string
+  tls_version: string
+  cipher_suite: string
+  alpn: string
+  source: string
+  label: string
+  note: string
+}
+
+export interface TLSDiagnostics {
+  behind_reverse_proxy: boolean
+  proxy_signals: string[]
+  client: TLSLayerInfo
+  backend: TLSLayerInfo
+  hsts: boolean
+  hsts_header?: string
+  http3_available: boolean
+  explanation_key: string
+}
+
+export interface PublicProviderStatus {
+  id: string
+  name: string
+  enabled: boolean
+  configured: boolean
+  implemented: boolean
+}
+
+export interface PublicCapabilities {
+  features: {
+    ipv6: boolean
+    webrtc: boolean
+    dns_leak: boolean
+    service_check: boolean
+    fraud_check: boolean
+  }
+  providers: PublicProviderStatus[]
+}
+
 export interface ConnectionReport {
   ip: string
   hostname: string
@@ -43,10 +95,13 @@ export interface ConnectionReport {
   cert_expiration: string
   pfs: boolean
   secure_context: boolean
+  tls_diagnostics?: TLSDiagnostics
   webrtc: boolean
   webrtc_leak: string
   dns_leak: string
   risk_score: number
+  fraud_check_enabled: boolean
+  fraud_providers: FraudProviderInsight[]
   hosting: boolean
   vpn: boolean
   proxy: boolean

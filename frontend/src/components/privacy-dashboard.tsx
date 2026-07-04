@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Copy,
   Globe,
+  KeyRound,
   Languages,
   Lock,
   Monitor,
@@ -35,6 +36,9 @@ import type {
   ConnectionReport,
   EnvironmentSignals,
   FingerprintData,
+  FraudProviderInsight,
+  TLSLayerInfo,
+  TLSDiagnostics,
   WebRTCData,
 } from "@/types/report"
 
@@ -146,6 +150,145 @@ function InfoBarItem({ label, value }: { label: string; value: string }) {
   )
 }
 
+function layerTlsDisplay(layer: TLSLayerInfo, tr: (key: TranslationKey) => string): string {
+  if (layer.tls_version) return layer.tls_version
+  if (layer.label) return tr(layer.label as TranslationKey)
+  return "—"
+}
+
+function layerNote(layer: TLSLayerInfo, tr: (key: TranslationKey) => string): string | null {
+  if (!layer.note) return null
+  return tr(layer.note as TranslationKey)
+}
+
+function TLSLayerCard({ title, layer, tr }: { title: string; layer: TLSLayerInfo; tr: (key: TranslationKey) => string }) {
+  return (
+    <div className="rounded-xl border border-nc-divider bg-nc-inset p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-nc-secondary">{title}</p>
+        <span className={cn(
+          "text-[10px] font-medium px-2 py-0.5 rounded-full border",
+          layer.encrypted ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/10" : "text-nc-muted border-nc-divider bg-nc-hover",
+        )}>
+          {layer.encrypted ? "HTTPS" : "HTTP"}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <p className="text-nc-faint mb-0.5">TLS</p>
+          <p className="text-nc-secondary font-medium">{layerTlsDisplay(layer, tr)}</p>
+        </div>
+        <div>
+          <p className="text-nc-faint mb-0.5">HTTP</p>
+          <p className="text-nc-secondary">{layer.http_version || "—"}</p>
+        </div>
+        {layer.cipher_suite && (
+          <div className="col-span-2">
+            <p className="text-nc-faint mb-0.5">Cipher</p>
+            <p className="text-nc-muted font-mono text-[11px] ltr-mono truncate">{layer.cipher_suite}</p>
+          </div>
+        )}
+      </div>
+      {layerNote(layer, tr) && (
+        <p className="text-[11px] text-nc-faint leading-relaxed border-t border-nc-divider pt-2">{layerNote(layer, tr)}</p>
+      )}
+    </div>
+  )
+}
+
+function TLSDiagnosticsPanel({ diag }: { diag: TLSDiagnostics }) {
+  const { tr } = useLocale()
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-nc-muted">{tr("tlsSectionTitle")}</p>
+          {diag.behind_reverse_proxy && (
+            <p className="text-xs text-nc-faint mt-1">
+              {diag.proxy_signals.length > 0 ? diag.proxy_signals.join(" · ") : tr("tlsProxyHandled")}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className={cn(
+            "text-[10px] font-medium px-2.5 py-1 rounded-full border",
+            diag.hsts ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/10" : "text-nc-muted border-nc-divider",
+          )}>
+            {diag.hsts ? tr("tlsHsts") : tr("tlsHstsOff")}
+          </span>
+          {diag.http3_available && (
+            <span className="text-[10px] font-medium px-2.5 py-1 rounded-full border text-violet-500 border-violet-500/20 bg-violet-500/10">
+              {tr("tlsHttp3")}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <p className="text-sm text-nc-muted leading-relaxed mb-4">{tr(diag.explanation_key as TranslationKey)}</p>
+
+      <div className="grid md:grid-cols-2 gap-3">
+        <TLSLayerCard title={tr("tlsClientConnection")} layer={diag.client} tr={tr} />
+        <TLSLayerCard title={tr("tlsBackendConnection")} layer={diag.backend} tr={tr} />
+      </div>
+    </Card>
+  )
+}
+
+function FraudProvidersPanel({ providers }: { providers: FraudProviderInsight[] }) {
+  const { tr } = useLocale()
+  const active = providers.filter(p => p.active)
+  if (active.length === 0) return null
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-nc-muted">{tr("sectionFraudProviders")}</p>
+          <p className="text-xs text-nc-faint mt-1">{tr("fraudSourcesActive").replace("{count}", String(active.length))}</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-500">
+          <KeyRound className="size-3" />
+          {tr("fraudLiveCheck")}
+        </span>
+      </div>
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {active.map(provider => {
+          let status = tr("fraudReady")
+          let statusClass = "text-nc-muted"
+          let score: string | null = null
+
+          if (!provider.implemented) {
+            status = tr("fraudPendingIntegration")
+            statusClass = "text-amber-500"
+          } else if (provider.error) {
+            status = tr("fraudProviderError")
+            statusClass = "text-rose-500"
+          } else if (provider.queried && provider.risk_score != null) {
+            status = tr("fraudLiveCheck")
+            statusClass = "text-emerald-500"
+            score = `${provider.risk_score}/100`
+          }
+
+          return (
+            <div key={provider.id} className="rounded-xl border border-nc-divider bg-nc-inset px-4 py-3.5 min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-sm font-medium text-nc-secondary truncate">{provider.name}</p>
+                {score && <span className="text-sm font-semibold tabular-nums text-nc-primary shrink-0">{score}</span>}
+              </div>
+              <p className={cn("text-xs font-medium", statusClass)}>{status}</p>
+              {provider.error && (
+                <p className="text-[11px] text-nc-faint mt-1 truncate" title={provider.error}>{provider.error}</p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </Card>
+  )
+}
+
 function SignalCard({ issue }: { issue: SignalIssue }) {
   const { tr } = useLocale()
   const critical = issue.severity === "critical"
@@ -178,6 +321,13 @@ function LevelDot({ level }: { level: VisibilityLevel }) {
   return <span className={cn("size-1.5 rounded-full shrink-0 mt-1.5", c)} />
 }
 
+function formatVisValue(value: string, tr: (key: TranslationKey) => string): string {
+  if (value.startsWith("tls") && value in { tlsProxyHandled: 1, tlsForwardedInfo: 1, tlsUnavailableBackend: 1 }) {
+    return tr(value as TranslationKey)
+  }
+  return value
+}
+
 function VisibilityGroup({ title, items }: { title: string; items: VisibilityField[] }) {
   const { tr, rtl } = useLocale()
   if (items.length === 0) return null
@@ -192,7 +342,7 @@ function VisibilityGroup({ title, items }: { title: string; items: VisibilityFie
             <div className="min-w-0 flex-1">
               <p className="text-xs text-nc-muted truncate">{tr(item.labelKey)}</p>
               <p className={cn("text-[11px] font-mono text-nc-faint truncate mt-0.5 ltr-mono", rtl && "text-left")}>
-                {item.value}
+                {formatVisValue(item.value, tr)}
               </p>
             </div>
           </div>
@@ -252,19 +402,28 @@ const VIS_GROUPS: { titleKey: string; ids: string[] }[] = [
   { titleKey: "Security", ids: ["cookies", "dnt", "tls", "http", "cipher", "js", "perm", "media"] },
 ]
 
-function buildMetrics(report: ConnectionReport, leakVerdict: LeakVerdict): MetricCardData[] {
+function buildMetrics(
+  report: ConnectionReport,
+  leakVerdict: LeakVerdict,
+  tr: (key: TranslationKey) => string,
+): MetricCardData[] {
+  const liveFraud = (report.fraud_providers ?? []).filter(p => p.active && p.queried && p.risk_score != null)
+  const hasLiveFraud = liveFraud.length > 0
+
   const repScore = report.risk_score
   let repTone: MetricTone = "ok"
   let repStatus: TranslationKey = "statusSafe"
-  let repDesc: TranslationKey = "descRepClean"
+  let repDesc: TranslationKey = hasLiveFraud ? "descRepLive" : "descRepClean"
+  let repStatusText: string | undefined = hasLiveFraud ? `${repScore}/100` : undefined
+
   if (repScore >= 70) {
     repTone = "bad"
     repStatus = "statusRisk"
-    repDesc = "descRepHigh"
+    repDesc = hasLiveFraud ? "descRepLive" : "descRepHigh"
   } else if (repScore >= 40) {
     repTone = "warn"
     repStatus = "statusWarning"
-    repDesc = "descRepElevated"
+    repDesc = hasLiveFraud ? "descRepLive" : "descRepElevated"
   }
 
   let tunnelTone: MetricTone = "ok"
@@ -319,16 +478,43 @@ function buildMetrics(report: ConnectionReport, leakVerdict: LeakVerdict): Metri
     ipv6Desc = report.vpn || report.proxy ? "descIpv6Leak" : "descIpv6On"
   }
 
-  const tls = report.tls_version || ""
-  let tlsTone: MetricTone = tls ? "ok" : "neutral"
-  let tlsStatus: TranslationKey = tls.includes("1.3") ? "statusModern" : tls ? "statusSafe" : "statusMissing"
-  let tlsDesc: TranslationKey = tls.includes("1.3") ? "descTlsModern" : tls ? "descTlsOk" : "descTlsMissing"
-  if (tls && !tls.includes("1.3") && !tls.includes("1.2")) {
+  const diag = report.tls_diagnostics
+  const clientTls = diag?.client.tls_version || ""
+  const tlsEncrypted = diag?.client.encrypted ?? report.https
+  const tlsBehindProxy = diag?.behind_reverse_proxy ?? false
+
+  let tlsTone: MetricTone = "neutral"
+  let tlsStatus: TranslationKey = "statusMissing"
+  let tlsDesc: TranslationKey = "descTlsMissing"
+  let tlsStatusText: string | undefined
+
+  if (clientTls.includes("1.3")) {
+    tlsTone = "ok"
+    tlsStatus = "statusModern"
+    tlsDesc = "descTlsModern"
+    tlsStatusText = clientTls
+  } else if (clientTls.includes("1.2")) {
+    tlsTone = "ok"
+    tlsStatus = "statusSafe"
+    tlsDesc = "descTlsOk"
+    tlsStatusText = clientTls
+  } else if (clientTls) {
     tlsTone = "warn"
     tlsStatus = "statusLegacy"
+    tlsDesc = "descTlsOk"
+    tlsStatusText = clientTls
+  } else if (tlsEncrypted && tlsBehindProxy) {
+    tlsTone = "ok"
+    tlsStatusText = tr("tlsProxyHandled")
+    tlsDesc = "descTlsProxy"
+  } else if (tlsEncrypted) {
+    tlsTone = "ok"
+    tlsStatus = "statusSafe"
+    tlsDesc = "descTlsOk"
+    tlsStatusText = tr("tlsForwardedInfo")
   }
 
-  const http = report.http_version || ""
+  const http = diag?.client.http_version || report.http_version || ""
   let httpTone: MetricTone = "neutral"
   let httpStatus: TranslationKey = "statusUnknown"
   let httpDesc: TranslationKey = "descHttpUnknown"
@@ -345,12 +531,12 @@ function buildMetrics(report: ConnectionReport, leakVerdict: LeakVerdict): Metri
   const browserLabel = [report.browser, report.browser_version].filter(Boolean).join(" ") || "—"
 
   return [
-    { id: "rep", icon: ShieldCheck, tone: repTone, titleKey: "metricIpReputation", statusKey: repStatus, descKey: repDesc },
+    { id: "rep", icon: ShieldCheck, tone: repTone, titleKey: "metricIpReputation", statusKey: repStatus, statusText: repStatusText, descKey: repDesc },
     { id: "tunnel", icon: Wifi, tone: tunnelTone, titleKey: "metricVpnProxy", statusKey: tunnelStatus, descKey: tunnelDesc },
     { id: "webrtc", icon: Radio, tone: webrtcTone, titleKey: "metricWebrtc", statusKey: webrtcStatus, descKey: webrtcDesc },
     { id: "dns", icon: Server, tone: dnsTone, titleKey: "metricDns", statusKey: dnsStatus, descKey: dnsDesc },
     { id: "ipv6", icon: Globe, tone: ipv6Tone, titleKey: "metricIpv6", statusKey: ipv6Status, descKey: ipv6Desc },
-    { id: "tls", icon: Lock, tone: tlsTone, titleKey: "metricTls", statusKey: tlsStatus, descKey: tlsDesc },
+    { id: "tls", icon: Lock, tone: tlsTone, titleKey: "metricTls", statusKey: tlsStatus, statusText: tlsStatusText, descKey: tlsDesc },
     { id: "http", icon: Zap, tone: httpTone, titleKey: "metricHttp", statusKey: httpStatus, descKey: httpDesc },
     {
       id: "browser",
@@ -409,7 +595,7 @@ export function PrivacyDashboard({
     return runPrivacyPlatformAnalysis({ report, browser, fingerprint, webRTC, environment: env, leaks })
   }, [report, browser, fingerprint, webRTC, env])
 
-  const metrics = useMemo(() => buildMetrics(report, data.leak.verdict), [report, data.leak.verdict])
+  const metrics = useMemo(() => buildMetrics(report, data.leak.verdict, tr), [report, data.leak.verdict, tr])
 
   const visVisible = data.visibility.filter(v => v.level === "visible").length
   const visPartial = data.visibility.filter(v => v.level === "partial").length
@@ -477,6 +663,14 @@ export function PrivacyDashboard({
           <MetricCard key={metric.id} metric={metric} />
         ))}
       </div>
+
+      {report.fraud_check_enabled && (report.fraud_providers?.some(p => p.active) ?? false) && (
+        <FraudProvidersPanel providers={report.fraud_providers ?? []} />
+      )}
+
+      {report.tls_diagnostics && (
+        <TLSDiagnosticsPanel diag={report.tls_diagnostics} />
+      )}
 
       {/* Bottom info bar */}
       <Card padding={false} className="overflow-hidden">

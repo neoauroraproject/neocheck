@@ -9,24 +9,80 @@
   --font-vazir: "Vazirmatn", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-:root {
-  --bg: #050506;
-  --fg: #fafafa;
-  --muted: #71717a;
-  --border: rgba(255, 255, 255, 0.06);
-  --surface: #0a0a0b;
+/* ─── Light (default) ─── */
+:root,
+[data-theme="light"] {
+  --page-bg: #f4f6f9;
+  --page-fg: #18181b;
+  --header-bg: rgba(255, 255, 255, 0.82);
+  --card-border: rgba(15, 23, 42, 0.08);
+  --card-from: #ffffff;
+  --card-to: #f8fafc;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --surface-inset: rgba(15, 23, 42, 0.04);
+  --surface-inset-hover: rgba(15, 23, 42, 0.07);
+  --surface-hover: rgba(15, 23, 42, 0.04);
+  --divider: rgba(15, 23, 42, 0.08);
+  --grid-bg: rgba(15, 23, 42, 0.06);
+  --cell-bg: #ffffff;
+  --ring-track: rgba(15, 23, 42, 0.1);
+  --ambient-a: rgba(139, 92, 246, 0.08);
+  --ambient-b: rgba(6, 182, 212, 0.06);
+  --dot-grid: rgba(15, 23, 42, 0.04);
+  --selection: rgba(139, 92, 246, 0.18);
+  --glow-inset: rgba(255, 255, 255, 0.9);
+  --glow-shadow: rgba(15, 23, 42, 0.08);
+  --glow-accent-inset: rgba(139, 92, 246, 0.12);
+  --glow-accent-shadow: rgba(139, 92, 246, 0.12);
+}
+
+/* ─── Dark ─── */
+[data-theme="dark"] {
+  --page-bg: #050506;
+  --page-fg: #fafafa;
+  --header-bg: rgba(5, 5, 6, 0.78);
+  --card-border: rgba(255, 255, 255, 0.07);
+  --card-from: rgba(255, 255, 255, 0.04);
+  --card-to: rgba(255, 255, 255, 0.015);
+  --text-primary: #fafafa;
+  --text-secondary: #d4d4d8;
+  --text-muted: #71717a;
+  --text-faint: #52525b;
+  --surface-inset: rgba(0, 0, 0, 0.28);
+  --surface-inset-hover: rgba(0, 0, 0, 0.38);
+  --surface-hover: rgba(255, 255, 255, 0.04);
+  --divider: rgba(255, 255, 255, 0.06);
+  --grid-bg: rgba(255, 255, 255, 0.06);
+  --cell-bg: #070708;
+  --ring-track: rgba(255, 255, 255, 0.06);
+  --ambient-a: rgba(139, 92, 246, 0.07);
+  --ambient-b: rgba(6, 182, 212, 0.04);
+  --dot-grid: rgba(255, 255, 255, 0.04);
+  --selection: rgba(139, 92, 246, 0.25);
+  --glow-inset: rgba(255, 255, 255, 0.04);
+  --glow-shadow: rgba(0, 0, 0, 0.55);
+  --glow-accent-inset: rgba(139, 92, 246, 0.14);
+  --glow-accent-shadow: rgba(88, 28, 135, 0.28);
 }
 
 body {
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--page-bg);
+  color: var(--page-fg);
   font-family: var(--font-sans);
+  font-feature-settings: "ss01", "ss02";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 html[lang="fa"] body {
   font-family: var(--font-vazir);
+  letter-spacing: 0;
+  line-height: 1.75;
 }
 
 html[dir="rtl"] .ltr-mono {
@@ -35,5 +91,48 @@ html[dir="rtl"] .ltr-mono {
 }
 
 ::selection {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--selection);
+}
+
+/* Semantic utilities */
+.text-nc-primary { color: var(--text-primary); }
+.text-nc-secondary { color: var(--text-secondary); }
+.text-nc-muted { color: var(--text-muted); }
+.text-nc-faint { color: var(--text-faint); }
+.bg-nc-page { background-color: var(--page-bg); }
+.bg-nc-header { background-color: var(--header-bg); }
+.bg-nc-inset { background-color: var(--surface-inset); }
+.bg-nc-inset-hover { background-color: var(--surface-inset-hover); }
+.bg-nc-cell { background-color: var(--cell-bg); }
+.bg-nc-grid { background-color: var(--grid-bg); }
+.bg-nc-hover { background-color: var(--surface-hover); }
+.border-nc { border-color: var(--card-border); }
+.border-nc-divider { border-color: var(--divider); }
+
+.nc-card {
+  border: 1px solid var(--card-border);
+  background: linear-gradient(to bottom, var(--card-from), var(--card-to));
+}
+
+.card-glow {
+  box-shadow:
+    0 0 0 1px var(--glow-inset) inset,
+    0 1px 2px var(--glow-shadow),
+    0 20px 40px -28px var(--glow-shadow);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.card-glow-accent {
+  box-shadow:
+    0 0 0 1px var(--glow-accent-inset) inset,
+    0 1px 2px var(--glow-shadow),
+    0 28px 56px -36px var(--glow-accent-shadow);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+@media (min-width: 1024px) {
+  html[lang="fa"] h1,
+  html[lang="fa"] .text-balance {
+    text-wrap: balance;
+  }
 }

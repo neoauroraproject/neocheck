@@ -13,6 +13,9 @@ const baseEn = {
   copied: "Copied",
   github: "GitHub",
   langToggle: "فا",
+  themeToggle: "Toggle theme",
+  themeLight: "Light",
+  themeDark: "Dark",
 
   heroConsistency: "Consistency Score",
   heroSubtitle: "How aligned your signals look to websites",
@@ -146,6 +149,9 @@ const baseFa: Record<keyof typeof baseEn, string> = {
   copied: "کپی شد",
   github: "گیت‌هاب",
   langToggle: "EN",
+  themeToggle: "تغییر تم",
+  themeLight: "روشن",
+  themeDark: "تیره",
 
   heroConsistency: "امتیاز هماهنگی",
   heroSubtitle: "سیگنال‌های شما چقدر برای وب‌سایت‌ها منطقی به نظر می‌رسند",

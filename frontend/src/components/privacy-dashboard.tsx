@@ -2,15 +2,31 @@
 
 import { useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Check, ChevronDown, Copy, Languages } from "lucide-react"
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  Globe,
+  Languages,
+  Lock,
+  Monitor,
+  Radio,
+  Server,
+  ShieldCheck,
+  Wifi,
+  Zap,
+} from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { CountryFlag } from "@/components/country-flag"
 import { useLocale } from "@/components/locale-provider"
-import { analyzeLeaks } from "@/lib/visibility-analyzer-engine"
+import { isDnsLeak, isDnsSafe } from "@/lib/format"
+import type { TranslationKey } from "@/lib/i18n/translations"
+import { analyzeLeaks, type SignalIssue } from "@/lib/visibility-analyzer-engine"
 import {
   runPrivacyPlatformAnalysis,
   type CompatLevel,
   type LeakVerdict,
-  type UniquenessLevel,
+  type VisibilityField,
   type VisibilityLevel,
 } from "@/lib/privacy-platform-engine"
 import { cn } from "@/lib/utils"
@@ -22,26 +38,195 @@ import type {
   WebRTCData,
 } from "@/types/report"
 
-function Card({ children, className }: { children: React.ReactNode; className?: string }) {
+type MetricTone = "ok" | "warn" | "bad" | "neutral"
+
+interface MetricCardData {
+  id: string
+  icon: LucideIcon
+  tone: MetricTone
+  titleKey: TranslationKey
+  statusKey?: TranslationKey
+  statusText?: string
+  descKey: TranslationKey
+}
+
+function scoreTone(score: number) {
+  if (score >= 75) return { stroke: "#34d399", text: "text-emerald-400" }
+  if (score >= 50) return { stroke: "#fbbf24", text: "text-amber-400" }
+  return { stroke: "#fb7185", text: "text-rose-400" }
+}
+
+function metricToneStyles(tone: MetricTone) {
+  const map = {
+    ok: { ring: "bg-emerald-500/15 text-emerald-400", status: "text-emerald-400" },
+    warn: { ring: "bg-amber-500/15 text-amber-400", status: "text-amber-400" },
+    bad: { ring: "bg-rose-500/15 text-rose-400", status: "text-rose-400" },
+    neutral: { ring: "bg-zinc-500/15 text-zinc-400", status: "text-zinc-300" },
+  }
+  return map[tone]
+}
+
+function Card({
+  children,
+  className,
+  accent,
+  padding = true,
+}: {
+  children: React.ReactNode
+  className?: string
+  accent?: boolean
+  padding?: boolean
+}) {
   return (
-    <div className={cn("rounded-2xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-sm", className)}>
+    <div
+      className={cn(
+        "rounded-2xl nc-card backdrop-blur-sm",
+        accent ? "card-glow-accent" : "card-glow",
+        padding && "p-5 sm:p-6",
+        className,
+      )}
+    >
       {children}
     </div>
   )
 }
 
-function Accordion({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen)
+function ScoreRing({ score, size = 112 }: { score: number; size?: number }) {
+  const r = 46
+  const c = 2 * Math.PI * r
+  const offset = c - (score / 100) * c
+  const tone = scoreTone(score)
+
   return (
-    <Card>
-      <button type="button" onClick={() => setOpen(v => !v)} className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-4 text-sm text-zinc-300 hover:text-zinc-100">
-        <span className="font-medium">{title}</span>
-        <ChevronDown className={cn("size-4 text-zinc-500 transition-transform", open && "rotate-180")} />
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg viewBox="0 0 100 100" className="size-full -rotate-90">
+        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--ring-track)" strokeWidth="6" />
+        <motion.circle
+          cx="50" cy="50" r={r} fill="none" stroke={tone.stroke} strokeWidth="6" strokeLinecap="round"
+          strokeDasharray={c} initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className={cn("text-3xl font-semibold tabular-nums tracking-tight", tone.text)}>{score}</span>
+      </div>
+    </div>
+  )
+}
+
+function MetricCard({ metric }: { metric: MetricCardData }) {
+  const { tr } = useLocale()
+  const styles = metricToneStyles(metric.tone)
+  const Icon = metric.icon
+
+  return (
+    <div className="rounded-2xl nc-card p-4 sm:p-5 card-glow h-full flex flex-col">
+      <div className="flex items-start gap-3.5 mb-3">
+        <div className={cn("size-10 rounded-full flex items-center justify-center shrink-0", styles.ring)}>
+          <Icon className="size-[18px]" strokeWidth={2} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-nc-secondary">{tr(metric.titleKey)}</p>
+          <p className={cn("text-sm font-semibold mt-0.5", styles.status)}>
+            {metric.statusText ?? (metric.statusKey ? tr(metric.statusKey) : "—")}
+          </p>
+        </div>
+      </div>
+      <p className="text-xs text-nc-muted leading-relaxed mt-auto">{tr(metric.descKey)}</p>
+    </div>
+  )
+}
+
+function InfoBarItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="px-4 sm:px-5 py-3.5 sm:py-4 min-w-0 bg-nc-cell">
+      <p className="text-[10px] uppercase tracking-wider text-nc-faint mb-1">{label}</p>
+      <p className="text-sm text-nc-secondary truncate ltr-mono">{value}</p>
+    </div>
+  )
+}
+
+function SignalCard({ issue }: { issue: SignalIssue }) {
+  const { tr } = useLocale()
+  const critical = issue.severity === "critical"
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-3.5 sm:p-4",
+        critical ? "border-rose-500/15 bg-rose-500/[0.06]" : "border-amber-500/12 bg-amber-500/[0.04]",
+      )}
+    >
+      <p className="text-sm text-nc-secondary mb-3 leading-snug">{tr(issue.messageKey)}</p>
+      <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center text-center">
+        <div className="rounded-lg bg-nc-inset border border-nc-divider px-2 py-2 min-w-0">
+          <p className="text-[10px] text-nc-faint mb-0.5 truncate">{tr(issue.left.labelKey)}</p>
+          <p className="text-xs text-nc-secondary truncate ltr-mono">{issue.left.value}</p>
+        </div>
+        <span className={cn("text-xs font-bold", critical ? "text-rose-400" : "text-amber-400")}>≠</span>
+        <div className="rounded-lg bg-nc-inset border border-nc-divider px-2 py-2 min-w-0">
+          <p className="text-[10px] text-nc-faint mb-0.5 truncate">{tr(issue.right.labelKey)}</p>
+          <p className="text-xs text-nc-secondary truncate ltr-mono">{issue.right.value}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LevelDot({ level }: { level: VisibilityLevel }) {
+  const c = level === "visible" ? "bg-emerald-400" : level === "partial" ? "bg-amber-400" : "bg-zinc-600"
+  return <span className={cn("size-1.5 rounded-full shrink-0 mt-1.5", c)} />
+}
+
+function VisibilityGroup({ title, items }: { title: string; items: VisibilityField[] }) {
+  const { tr, rtl } = useLocale()
+  if (items.length === 0) return null
+
+  return (
+    <div>
+      <p className="text-[11px] font-medium text-nc-faint mb-2">{title}</p>
+      <div className="grid sm:grid-cols-2 gap-px rounded-xl overflow-hidden bg-nc-grid">
+        {items.map(item => (
+          <div key={item.id} className="flex gap-2.5 bg-nc-cell px-3 py-2.5 min-w-0">
+            <LevelDot level={item.level} />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-nc-muted truncate">{tr(item.labelKey)}</p>
+              <p className={cn("text-[11px] font-mono text-nc-faint truncate mt-0.5 ltr-mono", rtl && "text-left")}>
+                {item.value}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Accordion({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Card padding={false} className="overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between gap-4 px-5 sm:px-6 py-4 text-start hover:bg-nc-hover transition-colors"
+      >
+        <div>
+          <p className="text-sm font-medium text-nc-secondary">{title}</p>
+          {subtitle && <p className="text-xs text-nc-faint mt-0.5">{subtitle}</p>}
+        </div>
+        <ChevronDown className={cn("size-4 text-nc-muted shrink-0 transition-transform duration-300", open && "rotate-180")} />
       </button>
       <AnimatePresence initial={false}>
         {open && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="px-4 sm:px-5 pb-5 border-t border-white/[0.05] pt-4">{children}</div>
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-0 border-t border-nc-divider">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -49,48 +234,146 @@ function Accordion({ title, children, defaultOpen = false }: { title: string; ch
   )
 }
 
-function ScoreBadge({ score, label }: { score: number; label: string }) {
-  const tone = score >= 75 ? "text-emerald-400" : score >= 50 ? "text-amber-400" : "text-rose-400"
-  return (
-    <div className="text-center">
-      <p className={cn("text-4xl sm:text-5xl font-semibold tabular-nums tracking-tight", tone)}>{score}</p>
-      <p className="text-[11px] uppercase tracking-wider text-zinc-500 mt-1">{label}</p>
-    </div>
-  )
-}
-
-function LevelPill({ level }: { level: VisibilityLevel }) {
-  const { tr } = useLocale()
-  const map = {
-    visible: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    partial: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    unavailable: "bg-zinc-500/10 text-zinc-500 border-zinc-500/20",
-  }
-  const key = level === "visible" ? "levelVisible" : level === "partial" ? "levelPartial" : "levelUnavailable"
-  return <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0", map[level])}>{tr(key)}</span>
-}
-
 function CompatPill({ level }: { level: CompatLevel }) {
   const { tr } = useLocale()
   const map = {
     likely: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
     limited: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-    unknown: "text-zinc-400 bg-zinc-500/10 border-zinc-500/20",
+    unknown: "text-zinc-500 bg-zinc-500/10 border-zinc-500/15",
   }
   const key = level === "likely" ? "compatLikely" : level === "limited" ? "compatLimited" : "compatUnknown"
   return <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full border", map[level])}>{tr(key)}</span>
 }
 
-function leakTone(v: LeakVerdict) {
-  if (v === "clear") return "border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-300"
-  if (v === "warning") return "border-amber-500/20 bg-amber-500/[0.06] text-amber-300"
-  return "border-rose-500/20 bg-rose-500/[0.06] text-rose-300"
+const VIS_GROUPS: { titleKey: string; ids: string[] }[] = [
+  { titleKey: "Network", ids: ["ip", "loc", "country", "city", "asn", "isp", "rdns", "v4", "v6"] },
+  { titleKey: "Browser", ids: ["browser", "bver", "os", "arch", "lang", "alang", "tz", "screen", "ua"] },
+  { titleKey: "Fingerprint", ids: ["canvas", "webgl", "audio", "webgpu", "hw", "mem", "color", "touch"] },
+  { titleKey: "Security", ids: ["cookies", "dnt", "tls", "http", "cipher", "js", "perm", "media"] },
+]
+
+function buildMetrics(report: ConnectionReport, leakVerdict: LeakVerdict): MetricCardData[] {
+  const repScore = report.risk_score
+  let repTone: MetricTone = "ok"
+  let repStatus: TranslationKey = "statusSafe"
+  let repDesc: TranslationKey = "descRepClean"
+  if (repScore >= 70) {
+    repTone = "bad"
+    repStatus = "statusRisk"
+    repDesc = "descRepHigh"
+  } else if (repScore >= 40) {
+    repTone = "warn"
+    repStatus = "statusWarning"
+    repDesc = "descRepElevated"
+  }
+
+  let tunnelTone: MetricTone = "ok"
+  let tunnelStatus: TranslationKey = "statusNotDetected"
+  let tunnelDesc: TranslationKey = "descTunnelNone"
+  if (report.tor) {
+    tunnelTone = "warn"
+    tunnelStatus = "statusDetected"
+    tunnelDesc = "descTunnelTor"
+  } else if (report.proxy) {
+    tunnelTone = "warn"
+    tunnelStatus = "statusDetected"
+    tunnelDesc = "descTunnelProxy"
+  } else if (report.vpn) {
+    tunnelTone = "warn"
+    tunnelStatus = "statusDetected"
+    tunnelDesc = "descTunnelVpn"
+  }
+
+  let webrtcTone: MetricTone = "ok"
+  let webrtcStatus: TranslationKey = "statusSafe"
+  let webrtcDesc: TranslationKey = "descWebrtcClear"
+  if (leakVerdict === "critical") {
+    webrtcTone = "bad"
+    webrtcStatus = "statusRisk"
+    webrtcDesc = "descWebrtcLeak"
+  } else if (leakVerdict === "warning") {
+    webrtcTone = "warn"
+    webrtcStatus = "statusWarning"
+    webrtcDesc = "descWebrtcPartial"
+  }
+
+  let dnsTone: MetricTone = "neutral"
+  let dnsStatus: TranslationKey = "statusUnknown"
+  let dnsDesc: TranslationKey = "descDnsUnknown"
+  if (isDnsSafe(report.dns_leak)) {
+    dnsTone = "ok"
+    dnsStatus = "statusSafe"
+    dnsDesc = "descDnsSafe"
+  } else if (isDnsLeak(report.dns_leak)) {
+    dnsTone = "bad"
+    dnsStatus = "statusRisk"
+    dnsDesc = "descDnsLeak"
+  }
+
+  let ipv6Tone: MetricTone = "ok"
+  let ipv6Status: TranslationKey = "statusInactive"
+  let ipv6Desc: TranslationKey = "descIpv6Off"
+  if (report.ipv6) {
+    ipv6Tone = report.vpn || report.proxy ? "warn" : "neutral"
+    ipv6Status = "statusActive"
+    ipv6Desc = report.vpn || report.proxy ? "descIpv6Leak" : "descIpv6On"
+  }
+
+  const tls = report.tls_version || ""
+  let tlsTone: MetricTone = tls ? "ok" : "neutral"
+  let tlsStatus: TranslationKey = tls.includes("1.3") ? "statusModern" : tls ? "statusSafe" : "statusMissing"
+  let tlsDesc: TranslationKey = tls.includes("1.3") ? "descTlsModern" : tls ? "descTlsOk" : "descTlsMissing"
+  if (tls && !tls.includes("1.3") && !tls.includes("1.2")) {
+    tlsTone = "warn"
+    tlsStatus = "statusLegacy"
+  }
+
+  const http = report.http_version || ""
+  let httpTone: MetricTone = "neutral"
+  let httpStatus: TranslationKey = "statusUnknown"
+  let httpDesc: TranslationKey = "descHttpUnknown"
+  if (http.includes("3") || http.includes("2")) {
+    httpTone = "ok"
+    httpStatus = "statusModern"
+    httpDesc = "descHttpModern"
+  } else if (http.includes("1")) {
+    httpTone = "warn"
+    httpStatus = "statusLegacy"
+    httpDesc = "descHttpLegacy"
+  }
+
+  const browserLabel = [report.browser, report.browser_version].filter(Boolean).join(" ") || "—"
+
+  return [
+    { id: "rep", icon: ShieldCheck, tone: repTone, titleKey: "metricIpReputation", statusKey: repStatus, descKey: repDesc },
+    { id: "tunnel", icon: Wifi, tone: tunnelTone, titleKey: "metricVpnProxy", statusKey: tunnelStatus, descKey: tunnelDesc },
+    { id: "webrtc", icon: Radio, tone: webrtcTone, titleKey: "metricWebrtc", statusKey: webrtcStatus, descKey: webrtcDesc },
+    { id: "dns", icon: Server, tone: dnsTone, titleKey: "metricDns", statusKey: dnsStatus, descKey: dnsDesc },
+    { id: "ipv6", icon: Globe, tone: ipv6Tone, titleKey: "metricIpv6", statusKey: ipv6Status, descKey: ipv6Desc },
+    { id: "tls", icon: Lock, tone: tlsTone, titleKey: "metricTls", statusKey: tlsStatus, descKey: tlsDesc },
+    { id: "http", icon: Zap, tone: httpTone, titleKey: "metricHttp", statusKey: httpStatus, descKey: httpDesc },
+    {
+      id: "browser",
+      icon: Monitor,
+      tone: "neutral" as MetricTone,
+      titleKey: "metricBrowser",
+      statusText: browserLabel,
+      descKey: "descBrowserFp",
+    },
+  ]
 }
 
-function fpTone(l: UniquenessLevel) {
-  if (l === "low") return "text-emerald-400"
-  if (l === "medium") return "text-amber-400"
-  return "text-rose-400"
+function formatLocalTime(timezone: string, locale: string): string {
+  try {
+    return new Intl.DateTimeFormat(locale === "fa" ? "fa-IR" : "en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      timeZone: timezone.includes("/") ? timezone : undefined,
+    }).format(new Date())
+  } catch {
+    return new Date().toLocaleTimeString()
+  }
 }
 
 export function PrivacyDashboard({
@@ -110,7 +393,7 @@ export function PrivacyDashboard({
   onCopyIp: () => void
   copied: boolean
 }) {
-  const { locale, tr, rtl } = useLocale()
+  const { tr, locale } = useLocale()
 
   const env = environment || {
     timezone: "—", locale: "—", languages: [], hardwareConcurrency: 0, deviceMemory: null,
@@ -126,188 +409,157 @@ export function PrivacyDashboard({
     return runPrivacyPlatformAnalysis({ report, browser, fingerprint, webRTC, environment: env, leaks })
   }, [report, browser, fingerprint, webRTC, env])
 
+  const metrics = useMemo(() => buildMetrics(report, data.leak.verdict), [report, data.leak.verdict])
+
+  const visVisible = data.visibility.filter(v => v.level === "visible").length
+  const visPartial = data.visibility.filter(v => v.level === "partial").length
+  const locationLine = [report.city, report.region, report.country].filter(Boolean).join(", ") || "—"
+  const screenRes = browser?.screen || data.visibility.find(v => v.id === "screen")?.value || "—"
+  const localTime = formatLocalTime(env.timezone, locale)
+  const statusTone = data.leak.verdict === "critical" ? "text-rose-400" : data.overview.connectionStatusKey === "statusDirect" ? "text-emerald-400" : "text-amber-400"
+
   return (
-    <div className="space-y-4 sm:space-y-5">
-      <p className="text-sm text-zinc-500">{tr("mainQuestion")}</p>
-
-      {/* §1 Overview */}
-      <Card className="p-5 sm:p-6">
-        <p className="text-xs uppercase tracking-wider text-zinc-500 mb-4">{tr("sectionOverview")}</p>
-        <div className="flex flex-col sm:flex-row gap-6 sm:items-center">
-          <ScoreBadge score={data.overview.privacyScore} label={tr("privacyScore")} />
-          <div className="flex-1 space-y-4 min-w-0">
-            <button type="button" onClick={onCopyIp} className="flex items-center gap-3 group">
+    <div className="space-y-5 lg:space-y-6">
+      {/* Hero — full width */}
+      <Card accent padding={false} className="p-5 sm:p-6 lg:p-7">
+        <div className="grid lg:grid-cols-[1fr_auto_1fr] gap-6 lg:gap-8 items-center">
+          {/* Left — IP */}
+          <div className="min-w-0 order-1 lg:order-none">
+            <button
+              type="button"
+              onClick={onCopyIp}
+              className="flex items-center gap-3 w-full rounded-xl border border-nc bg-nc-inset px-4 py-3.5 hover:bg-nc-inset-hover transition-colors group text-start"
+            >
               <CountryFlag code={report.country_code} size="lg" />
-              <div className="text-start min-w-0">
-                <p className="font-mono text-lg text-zinc-100 ltr-mono truncate">{report.ip}</p>
-                <p className="text-sm text-zinc-400 truncate">{report.country}{data.overview.city !== "—" ? ` · ${data.overview.city}` : ""}</p>
+              <div className="min-w-0 flex-1">
+                <p className="font-mono text-lg sm:text-xl text-nc-primary ltr-mono truncate tracking-tight">{report.ip}</p>
+                <p className="text-sm text-nc-muted truncate mt-0.5">
+                  {report.country}{data.overview.city !== "—" ? ` · ${data.overview.city}` : ""}
+                </p>
               </div>
-              <Copy className="size-3.5 text-zinc-600 group-hover:text-zinc-400 shrink-0" />
-              {copied && <span className="text-xs text-emerald-500">{tr("copied")}</span>}
+              <Copy className="size-4 text-nc-faint group-hover:text-nc-muted shrink-0" />
+              {copied && <span className="text-xs text-emerald-500 shrink-0">{tr("copied")}</span>}
             </button>
-
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="px-2.5 py-1 rounded-full bg-white/[0.04] text-zinc-400 border border-white/[0.06]">{tr(data.overview.connectionStatusKey)}</span>
-              <span className="px-2.5 py-1 rounded-full bg-white/[0.04] text-zinc-400 border border-white/[0.06]">{tr(data.overview.connectionTypeKey)}</span>
-              <span className={cn("px-2.5 py-1 rounded-full border", data.overview.riskLevel === "high" ? "border-rose-500/20 text-rose-400 bg-rose-500/10" : data.overview.riskLevel === "medium" ? "border-amber-500/20 text-amber-400 bg-amber-500/10" : "border-emerald-500/20 text-emerald-400 bg-emerald-500/10")}>
-                {tr(data.overview.riskKey)}
-              </span>
-            </div>
-
-            <p className="text-sm text-zinc-300 leading-relaxed">{tr(data.overview.summaryKey)}</p>
           </div>
-        </div>
-      </Card>
 
-      {/* §2 Leak Detection */}
-      <Card className="p-5 sm:p-6">
-        <p className="text-xs uppercase tracking-wider text-zinc-500 mb-1">{tr("sectionLeak")}</p>
-        <p className="text-sm text-zinc-500 mb-4">{tr("sectionLeakDesc")}</p>
+          {/* Center — Score */}
+          <div className="flex flex-col items-center shrink-0 order-3 lg:order-none">
+            <ScoreRing score={data.overview.privacyScore} size={120} />
+            <p className="text-[11px] uppercase tracking-[0.14em] text-nc-muted mt-2.5">{tr("privacyScore")}</p>
+          </div>
 
-        {data.leak.candidates.length > 0 ? (
-          <div className="space-y-2 mb-4 max-h-48 overflow-y-auto pr-1">
-            {data.leak.candidates.map((c, i) => (
-              <div key={i} className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2.5 border border-white/[0.04]">
-                <span className="text-xs text-zinc-500">{tr(c.labelKey)}</span>
-                <span className="text-xs font-mono text-zinc-300 ltr-mono truncate">{c.ip}</span>
+          {/* Right — Status + nested cards */}
+          <div className="space-y-3 min-w-0 order-2 lg:order-none">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-nc-faint mb-1">{tr("connectionStatus")}</p>
+              <p className={cn("text-base font-semibold", statusTone)}>{tr(data.overview.connectionStatusKey)}</p>
+              <p className="text-xs text-nc-faint mt-1 leading-relaxed line-clamp-2">{tr(data.overview.summaryKey)}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-xl border border-nc-divider bg-nc-inset px-3.5 py-3 min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-nc-faint mb-1">{tr("heroIspAsn")}</p>
+                <p className="text-sm text-nc-secondary truncate">{report.isp || "—"}</p>
+                <p className="text-xs text-nc-muted ltr-mono mt-0.5">{report.asn ? `AS${report.asn}` : "—"}</p>
               </div>
-            ))}
+              <div className="rounded-xl border border-nc-divider bg-nc-inset px-3.5 py-3 min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-nc-faint mb-1">{tr("connectionType")}</p>
+                <p className="text-sm text-nc-secondary">{tr(data.overview.connectionTypeKey)}</p>
+                <p className="text-xs text-nc-muted mt-0.5">{tr(data.overview.riskKey)}</p>
+              </div>
+            </div>
           </div>
-        ) : (
-          <p className="text-xs text-zinc-600 mb-4">{tr("exposureClear")}</p>
-        )}
-
-        <div className={cn("rounded-xl border px-4 py-3", leakTone(data.leak.verdict))}>
-          <p className="text-sm font-medium">{tr("leakResult")}: {tr(data.leak.verdictKey)}</p>
-          <p className="text-xs mt-1 opacity-80 leading-relaxed">{tr(data.leak.whyKey)}</p>
         </div>
-
-        {data.leak.findings.length > 0 && (
-          <ul className="mt-3 space-y-1.5">
-            {data.leak.findings.map(f => (
-              <li key={f.id} className="text-xs text-zinc-500 flex gap-2">
-                <span className="text-rose-400 shrink-0">•</span>
-                {tr(f.messageKey)}
-              </li>
-            ))}
-          </ul>
-        )}
       </Card>
 
-      {/* §4 Consistency + §5 Fingerprint — side by side */}
-      <div className="grid sm:grid-cols-2 gap-4 sm:gap-5">
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-3">{tr("sectionConsistency")}</p>
-          <ScoreBadge score={data.consistencyScore} label={tr("heroConsistency")} />
-          <p className="text-xs text-zinc-500 mt-4 leading-relaxed">{tr(data.consistencySummaryKey)}</p>
-          {data.signalIssues.length > 0 && (
-            <ul className="mt-3 space-y-2">
-              {data.signalIssues.slice(0, 3).map(s => (
-                <li key={s.id} className="text-xs text-amber-400/90 leading-relaxed">{tr(s.messageKey)}</li>
-              ))}
-            </ul>
-          )}
-          {data.signalIssues.length === 0 && (
-            <div className="mt-3 flex items-center gap-2 text-xs text-emerald-400">
-              <Check className="size-3.5" /> {tr("noMismatches")}
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-3">{tr("sectionFingerprint")}</p>
-          <p className={cn("text-2xl font-semibold", fpTone(data.fingerprintLevel))}>{tr(data.fingerprintKey)}</p>
-          <p className="text-xs text-zinc-500 mt-3 leading-relaxed">{tr(data.fingerprintWhyKey)}</p>
-        </Card>
+      {/* 8 metric cards — 4×2 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        {metrics.map(metric => (
+          <MetricCard key={metric.id} metric={metric} />
+        ))}
       </div>
 
-      {/* §3 Website Visibility — accordion */}
-      <Accordion title={tr("sectionVisibilityTitle")}>
-        <div className="space-y-1">
-          {data.visibility.map(item => (
-            <div key={item.id} className="flex items-start justify-between gap-3 py-2.5 border-b border-white/[0.04] last:border-0">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-zinc-300">{tr(item.labelKey)}</p>
-                <p className="text-[11px] text-zinc-600 mt-0.5 leading-relaxed hidden sm:block">{tr(item.whyKey)}</p>
-              </div>
-              <div className={cn("flex flex-col items-end gap-1 shrink-0 max-w-[45%]", rtl && "items-start")}>
-                <LevelPill level={item.level} />
-                <span className="text-[11px] font-mono text-zinc-500 truncate ltr-mono">{item.value}</span>
-              </div>
-            </div>
-          ))}
+      {/* Bottom info bar */}
+      <Card padding={false} className="overflow-hidden">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-nc-grid">
+          <InfoBarItem label={tr("barTimezone")} value={env.timezone} />
+          <InfoBarItem label={tr("barLocation")} value={locationLine} />
+          <InfoBarItem label={tr("barLocalTime")} value={localTime} />
+          <InfoBarItem label={tr("barLanguage")} value={env.locale || env.languages[0] || "—"} />
+          <InfoBarItem label={tr("barScreen")} value={screenRes} />
         </div>
-      </Accordion>
+      </Card>
 
-      {/* §6 Streaming */}
-      <Accordion title={tr("sectionStreaming")}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {data.streaming.map(s => (
-            <div key={s.id} className="rounded-xl border border-white/[0.05] bg-black/15 px-3 py-2.5">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="text-xs text-zinc-300 truncate">{s.name}</span>
-                <CompatPill level={s.level} />
-              </div>
-              <p className="text-[10px] text-zinc-600 leading-snug line-clamp-2">{tr(s.reasonKey)}</p>
-            </div>
-          ))}
-        </div>
-      </Accordion>
-
-      {/* §7 Reputation */}
-      <Accordion title={tr("sectionReputation")}>
-        <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-          <div className="flex justify-between gap-2 border-b border-white/[0.04] pb-2">
-            <dt className="text-zinc-500">{tr("fraudScore")}</dt>
-            <dd className="text-zinc-300 tabular-nums">{data.reputation.fraudScore}</dd>
-          </div>
-          <div className="flex justify-between gap-2 border-b border-white/[0.04] pb-2">
-            <dt className="text-zinc-500">ASN</dt>
-            <dd className="text-zinc-300 text-end text-xs">{tr(data.reputation.asnReputationKey)}</dd>
-          </div>
-          <div className="flex justify-between gap-2 border-b border-white/[0.04] pb-2">
-            <dt className="text-zinc-500">{tr("residentialConf")}</dt>
-            <dd className="text-zinc-300 tabular-nums">{data.reputation.residentialConfidence}%</dd>
-          </div>
-          <div className="flex justify-between gap-2 border-b border-white/[0.04] pb-2">
-            <dt className="text-zinc-500">{tr("hostingConf")}</dt>
-            <dd className="text-zinc-300 tabular-nums">{data.reputation.hostingConfidence}%</dd>
-          </div>
-        </dl>
-      </Accordion>
-
-      {/* §8 Recommendations */}
+      {/* Recommendations */}
       {data.recommendations.length > 0 && (
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-3">{tr("sectionRecommendations")}</p>
-          <ul className="space-y-2">
+        <Card>
+          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-nc-muted mb-3">{tr("sectionRecommendations")}</p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {data.recommendations.map(r => (
-              <li key={r.id} className="flex gap-2.5 text-sm text-zinc-400 leading-relaxed">
-                <span className="text-violet-400 shrink-0">→</span>
+              <div key={r.id} className="rounded-xl border border-violet-500/10 bg-violet-500/[0.04] px-4 py-3 text-sm text-nc-muted leading-relaxed">
                 {tr(r.textKey)}
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </Card>
       )}
 
-      {/* §9 Advanced */}
-      <Accordion title={tr("sectionAdvanced")}>
-        <div className="space-y-4">
+      {/* Deep-dive accordions */}
+      <Accordion
+        title={tr("sectionSignals")}
+        subtitle={data.signalIssues.length === 0 ? tr("noMismatches") : `${data.signalIssues.length} mismatch${data.signalIssues.length > 1 ? "es" : ""}`}
+      >
+        <div className="pt-4 space-y-3">
+          {data.signalIssues.length === 0 ? (
+            <div className="flex items-center gap-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[0.06] px-4 py-4">
+              <Check className="size-5 text-emerald-400 shrink-0" />
+              <div>
+                <p className="text-sm text-emerald-300">{tr("noMismatches")}</p>
+                <p className="text-xs text-nc-faint mt-0.5">{tr("noMismatchesHint")}</p>
+              </div>
+            </div>
+          ) : (
+            data.signalIssues.map(issue => <SignalCard key={issue.id} issue={issue} />)
+          )}
+        </div>
+      </Accordion>
+
+      <Accordion
+        title={tr("sectionVisibilityTitle")}
+        subtitle={`${data.visibility.length} signals · ${visVisible} visible · ${visPartial} partial`}
+      >
+        <div className="grid lg:grid-cols-2 gap-6 pt-4">
+          {VIS_GROUPS.map(g => {
+            const items = data.visibility.filter(v => g.ids.includes(v.id))
+            return <VisibilityGroup key={g.titleKey} title={g.titleKey} items={items} />
+          })}
+        </div>
+      </Accordion>
+
+      <Accordion title={tr("sectionStreaming")} subtitle={`${data.streaming.length} services estimated`}>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pt-4">
+          {data.streaming.map(s => (
+            <div key={s.id} className="rounded-xl border border-nc-divider bg-nc-inset px-3 py-2.5">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-xs text-nc-secondary truncate">{s.name}</span>
+                <CompatPill level={s.level} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Accordion>
+
+      <Accordion title={tr("sectionAdvanced")} subtitle="TLS · ICE · Raw fingerprint · Geo">
+        <div className="grid sm:grid-cols-2 gap-6 pt-4">
           {data.advanced.map(block => (
             <div key={block.titleKey}>
-              <p className="text-xs uppercase tracking-wider text-zinc-600 mb-2">{tr(block.titleKey)}</p>
-              <div className="font-mono text-[11px] text-zinc-500 space-y-1 ltr-mono">
-                {block.rows.length === 0 ? (
-                  <p>—</p>
-                ) : (
-                  block.rows.map((row, i) => (
-                    <div key={i} className="flex justify-between gap-3 py-1 border-b border-white/[0.03]">
-                      <span className="text-zinc-600">{row.label}</span>
-                      <span className="text-zinc-400 truncate">{row.value}</span>
-                    </div>
-                  ))
-                )}
+              <p className="text-[11px] uppercase tracking-wider text-nc-faint mb-2">{tr(block.titleKey)}</p>
+              <div className="font-mono text-[11px] text-nc-muted space-y-1 ltr-mono rounded-xl bg-nc-inset border border-nc-divider p-3 max-h-36 overflow-y-auto">
+                {block.rows.map((row, i) => (
+                  <div key={i} className="flex justify-between gap-2 py-0.5">
+                    <span className="text-nc-faint shrink-0">{row.label}</span>
+                    <span className="text-nc-muted truncate text-end">{row.value}</span>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -323,7 +575,7 @@ export function LanguageToggle() {
     <button
       type="button"
       onClick={() => setLocale(locale === "en" ? "fa" : "en")}
-      className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-200 px-2.5 py-1.5 rounded-full hover:bg-white/[0.04] border border-transparent hover:border-white/[0.08]"
+      className="flex items-center gap-1.5 text-sm text-nc-muted hover:text-nc-secondary px-3 py-1.5 rounded-full border border-nc-divider hover:border-nc hover:bg-nc-hover transition-all"
       aria-label="Toggle language"
     >
       <Languages className="size-3.5" />

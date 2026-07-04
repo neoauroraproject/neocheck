@@ -49,18 +49,7 @@ type abuseIPDBResponse struct {
 
 func (p *AbuseIPDBProvider) Check(ctx context.Context, req *report.Request) (any, error) {
 	if !p.enabled || p.apiKey == "" || req.IP == "127.0.0.1" || req.IP == "::1" || req.IP == "" {
-		// Heuristic mock fallback
-		return report.FraudResult{
-			RiskScore:   5,
-			Hosting:     false,
-			VPN:         false,
-			Proxy:       false,
-			Tor:         false,
-			Anonymous:   false,
-			Mobile:      false,
-			Residential: true,
-			Datacenter:  false,
-		}, nil
+		return report.FraudResult{}, nil
 	}
 
 	apiURL := fmt.Sprintf("https://api.abuseipdb.com/api/v2/check?ipAddress=%s&maxAgeInDays=90", url.QueryEscape(req.IP))
@@ -90,6 +79,7 @@ func (p *AbuseIPDBProvider) Check(ctx context.Context, req *report.Request) (any
 	isHosting := false
 	isDatacenter := false
 	isResidential := false
+	isMobile := false
 
 	usageType := res.Data.UsageType
 	if usageType != "" {
@@ -99,26 +89,60 @@ func (p *AbuseIPDBProvider) Check(ctx context.Context, req *report.Request) (any
 		} else if stringsContainsAny(usageType, "Fixed Line ISP", "Mobile ISP", "Consumer") {
 			isResidential = true
 		}
+		if usageType == "Mobile ISP" {
+			isMobile = true
+		}
 	}
 
+	signals := buildAbuseIPDBSignals(res.Data.AbuseConfidenceScore, res.Data.IsTor, usageType, isHosting, isResidential, isMobile)
+
 	return report.FraudResult{
-		RiskScore:   res.Data.AbuseConfidenceScore,
-		Hosting:     isHosting,
-		VPN:         false, // AbuseIPDB doesn't explicitly flag VPN except if Tor
-		Proxy:       false,
-		Tor:         res.Data.IsTor,
-		Anonymous:   res.Data.IsTor,
-		Mobile:      usageType == "Mobile ISP",
-		Residential: isResidential,
-		Datacenter:  isDatacenter,
+		RiskScore:             res.Data.AbuseConfidenceScore,
+		Hosting:               isHosting,
+		VPN:                   false,
+		Proxy:                 false,
+		Tor:                   res.Data.IsTor,
+		Anonymous:             res.Data.IsTor,
+		Mobile:                isMobile,
+		Residential:           isResidential,
+		Datacenter:            isDatacenter,
+		Queried:               true,
+		ClassificationSignals: signals,
 	}, nil
 }
 
+func buildAbuseIPDBSignals(score int, isTor bool, usageType string, hosting, residential, mobile bool) []report.ClassificationSignal {
+	var signals []report.ClassificationSignal
+	add := func(key, cat string, weight int, supports bool) {
+		signals = append(signals, report.ClassificationSignal{Key: key, Category: cat, Weight: weight, Supports: supports})
+	}
+
+	if hosting {
+		add("evDatacenterUsage", "hosting", 34, true)
+		add("evHostingDetected", "hosting", 28, true)
+	}
+	if isTor {
+		add("evTorDetected", "vpn", 42, true)
+	}
+	if mobile {
+		add("evMobileIsp", "mobile", 32, true)
+	}
+	if residential {
+		add("evResidentialUsage", "residential", 30, true)
+	}
+	if score >= 70 {
+		add("evHighFraudScore", "hosting", 16, true)
+	} else if score >= 0 && score < 25 {
+		add("evLowFraudScore", "residential", 14, true)
+	}
+	if usageType != "" && !hosting && !isTor {
+		add("evNoHostingDetection", "residential", 10, true)
+	}
+
+	return signals
+}
+
 func stringsContainsAny(s string, keywords ...string) bool {
-	lowerS := fmt.Sprintf("%s", s)
-	// Make it lowercase
-	lowerS = fmt.Sprintf("%s", lowerS)
-	// We can use a simpler approach
 	for _, kw := range keywords {
 		if containsIgnoreCase(s, kw) {
 			return true
@@ -128,7 +152,7 @@ func stringsContainsAny(s string, keywords ...string) bool {
 }
 
 func containsIgnoreCase(s, substr string) bool {
-	return len(s) >= len(substr) && (len(substr) == 0 || (len(s) > 0 && strings.Contains(strings.ToLower(s), strings.ToLower(substr))))
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
 
 func (p *AbuseIPDBProvider) Shutdown() error {

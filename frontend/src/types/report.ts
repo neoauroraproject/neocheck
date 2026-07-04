@@ -41,6 +41,30 @@ export interface TLSDiagnostics {
   explanation_key: string
 }
 
+export interface ClassificationSignal {
+  key: string
+  category: string
+  weight: number
+  supports: boolean
+}
+
+export interface ProviderClassificationContribution {
+  id: string
+  name: string
+  active: boolean
+  queried: boolean
+  signals: ClassificationSignal[]
+}
+
+export interface ConnectionClassification {
+  category: string
+  label_key: string
+  confidence: number
+  evidence: ClassificationSignal[]
+  providers: ProviderClassificationContribution[]
+  provider_count: number
+}
+
 export interface PublicProviderStatus {
   id: string
   name: string
@@ -96,6 +120,7 @@ export interface ConnectionReport {
   pfs: boolean
   secure_context: boolean
   tls_diagnostics?: TLSDiagnostics
+  connection_classification?: ConnectionClassification
   webrtc: boolean
   webrtc_leak: string
   dns_leak: string

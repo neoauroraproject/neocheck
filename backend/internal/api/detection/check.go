@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"neocheck-backend/internal/classification"
 	"neocheck-backend/internal/config"
 	"neocheck-backend/internal/engine/aggregator"
 	"neocheck-backend/internal/engine/pipeline"
@@ -89,6 +90,8 @@ func (h *Handler) CheckIP(c *gin.Context) {
 	sec := extractSecurityResult(results)
 	tlsDiag := BuildTLSDiagnostics(c.Request, sec)
 	ApplyTLSDiagnostics(finalReport, tlsDiag)
+
+	finalReport.ConnectionClassification = classification.Classify(cfg, finalReport, results)
 
 	// 4. Return unified JSON
 	c.JSON(http.StatusOK, finalReport)

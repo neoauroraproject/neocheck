@@ -71,6 +71,8 @@ type ConnectionReport struct {
 	CGNAT        bool   `json:"cgnat"`
 	CarrierClass string `json:"carrier_class"`
 
+	ConnectionClassification ConnectionClassification `json:"connection_classification"`
+
 	// External Services Availability Check
 	Services map[string]bool `json:"services"` // e.g., {"netflix": false, "bbc": true}
 

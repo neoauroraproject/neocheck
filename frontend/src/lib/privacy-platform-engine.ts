@@ -101,6 +101,10 @@ export interface PrivacyPlatformAnalysis {
 }
 
 function connectionType(report: ConnectionReport): { label: string; key: TranslationKey } {
+  const cc = report.connection_classification
+  if (cc?.label_key) {
+    return { label: cc.label_key, key: cc.label_key as TranslationKey }
+  }
   if (report.tor) return { label: "Tor", key: "connTor" }
   if (report.mobile) return { label: "Mobile", key: "connMobile" }
   if (report.residential) return { label: "Residential", key: "connResidential" }

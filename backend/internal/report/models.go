@@ -17,18 +17,20 @@ type GeoResult struct {
 
 // FraudResult is returned by fraud checking plugins
 type FraudResult struct {
-	RiskScore    int    `json:"risk_score"`
-	Hosting      bool   `json:"hosting"`
-	VPN          bool   `json:"vpn"`
-	Proxy        bool   `json:"proxy"`
-	Tor          bool   `json:"tor"`
-	Anonymous    bool   `json:"anonymous"`
-	Mobile       bool   `json:"mobile"`
-	Residential  bool   `json:"residential"`
-	Datacenter   bool   `json:"datacenter"`
-	ASNType      string `json:"asn_type"`
-	CGNAT        bool   `json:"cgnat"`
-	CarrierClass string `json:"carrier_class"`
+	RiskScore             int                    `json:"risk_score"`
+	Hosting               bool                   `json:"hosting"`
+	VPN                   bool                   `json:"vpn"`
+	Proxy                 bool                   `json:"proxy"`
+	Tor                   bool                   `json:"tor"`
+	Anonymous             bool                   `json:"anonymous"`
+	Mobile                bool                   `json:"mobile"`
+	Residential           bool                   `json:"residential"`
+	Datacenter            bool                   `json:"datacenter"`
+	ASNType               string                 `json:"asn_type"`
+	CGNAT                 bool                   `json:"cgnat"`
+	CarrierClass          string                 `json:"carrier_class"`
+	Queried               bool                   `json:"queried"`
+	ClassificationSignals []ClassificationSignal `json:"classification_signals,omitempty"`
 }
 
 // BrowserResult is returned by the browser parsing plugin

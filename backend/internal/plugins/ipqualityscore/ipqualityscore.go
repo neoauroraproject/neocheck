@@ -76,17 +76,57 @@ func (p *IPQSProvider) Check(ctx context.Context, req *report.Request) (any, err
 		return nil, fmt.Errorf("IPQS API error: %s", data.Message)
 	}
 
+	signals := buildIPQSSignals(data)
+
 	return report.FraudResult{
-		RiskScore:   data.FraudScore,
-		Hosting:     data.Hosting,
-		VPN:         data.VPN,
-		Proxy:       data.Proxy,
-		Tor:         data.Tor,
-		Anonymous:   data.VPN || data.Proxy || data.Tor,
-		Mobile:      data.Mobile,
-		Residential: !data.Hosting && !data.VPN && !data.Proxy && !data.Tor,
-		Datacenter:  data.Hosting,
+		RiskScore:             data.FraudScore,
+		Hosting:               data.Hosting,
+		VPN:                   data.VPN,
+		Proxy:                 data.Proxy,
+		Tor:                   data.Tor,
+		Anonymous:             data.VPN || data.Proxy || data.Tor,
+		Mobile:                data.Mobile,
+		Residential:           !data.Hosting && !data.VPN && !data.Proxy && !data.Tor && !data.Mobile,
+		Datacenter:            data.Hosting,
+		Queried:               true,
+		ClassificationSignals: signals,
 	}, nil
+}
+
+func buildIPQSSignals(data ipqsResponse) []report.ClassificationSignal {
+	var signals []report.ClassificationSignal
+	add := func(key, cat string, weight int, supports bool) {
+		signals = append(signals, report.ClassificationSignal{Key: key, Category: cat, Weight: weight, Supports: supports})
+	}
+
+	if data.Hosting {
+		add("evHostingDetected", "hosting", 36, true)
+		add("evDatacenterRange", "hosting", 28, true)
+	}
+	if data.VPN {
+		add("evVpnDetected", "vpn", 42, true)
+	}
+	if data.Proxy {
+		add("evProxyDetected", "vpn", 30, true)
+		add("evProxyConfidenceHigh", "vpn", 22, true)
+	}
+	if data.Tor {
+		add("evTorDetected", "vpn", 45, true)
+	}
+	if data.Mobile {
+		add("evMobileDetected", "mobile", 36, true)
+	}
+	if !data.Hosting && !data.VPN && !data.Proxy && !data.Tor {
+		add("evNoHostingDetection", "residential", 18, true)
+		add("evNoVpnDetection", "residential", 16, true)
+	}
+	if data.FraudScore < 25 {
+		add("evLowFraudScore", "residential", 14, true)
+	} else if data.FraudScore >= 75 {
+		add("evHighFraudScore", "hosting", 18, true)
+	}
+
+	return signals
 }
 
 func (p *IPQSProvider) Shutdown() error {

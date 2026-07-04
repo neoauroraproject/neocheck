@@ -1,6 +1,15 @@
 <div align="center">
   <h1>NeoCheck</h1>
   <p>Know your connection in seconds.</p>
+
+  <a href="docs/NeoCheck.png">
+    <img
+      src="docs/NeoCheck.png"
+      alt="NeoCheck — privacy and connection diagnostics dashboard"
+      width="1200"
+    />
+  </a>
+  <p><sub>Privacy score · IP reputation · TLS · VPN/DNS/WebRTC leaks · connection classification</sub></p>
   
   <p>
     <a href="#english">English</a> • <a href="#persian-فارسی">فارسی</a>

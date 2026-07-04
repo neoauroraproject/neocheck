@@ -80,6 +80,7 @@ SECURITY.md
 CHANGELOG.md
 ROADMAP.md
 /docs/
+!/docs/NeoCheck.png
 
 # create-next-app leftovers
 frontend/README.md

@@ -79,7 +79,7 @@ CONTRIBUTING.md
 SECURITY.md
 CHANGELOG.md
 ROADMAP.md
-/docs/
+/docs/*
 !/docs/NeoCheck.png
 
 # create-next-app leftovers

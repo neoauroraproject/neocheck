@@ -410,28 +410,76 @@ compose_down() {
     fi
 }
 
+disable_ssl_in_config() {
+    local cfg="$1"
+    awk '
+        BEGIN { in_ssl=0 }
+        /^ssl:/ { in_ssl=1 }
+        in_ssl && /^[^[:space:]#]/ && !/^ssl:/ { in_ssl=0 }
+        in_ssl && /^[[:space:]]*enabled:[[:space:]]*true/ {
+            sub(/true[[:space:]]*$/, "false")
+            in_ssl=0
+        }
+        { print }
+    ' "$cfg" > "$cfg.new" && mv "$cfg.new" "$cfg"
+}
+
+fix_ssl_paths_in_config() {
+    local cfg="$1"
+    awk '
+        BEGIN { in_ssl=0 }
+        /^ssl:/ { in_ssl=1 }
+        in_ssl && /^[^[:space:]#]/ && !/^ssl:/ { in_ssl=0 }
+        in_ssl && /^[[:space:]]*cert_path:[[:space:]]*""/ {
+            print "  cert_path: \"/opt/neocheck/ssl/server.crt\""
+            next
+        }
+        in_ssl && /^[[:space:]]*key_path:[[:space:]]*""/ {
+            print "  key_path: \"/opt/neocheck/ssl/server.key\""
+            next
+        }
+        { print }
+    ' "$cfg" > "$cfg.new" && mv "$cfg.new" "$cfg"
+}
+
+backup_installation_data() {
+    local stamp backup_dir
+    stamp=$(date +%Y%m%d-%H%M%S)
+    backup_dir="$INSTALL_DIR/backups/pre-update-$stamp"
+    mkdir -p "$backup_dir"
+
+    if [ -f "$INSTALL_DIR/config/config.yaml" ]; then
+        cp -a "$INSTALL_DIR/config/config.yaml" "$backup_dir/config.yaml"
+    fi
+    if [ -f "$INSTALL_DIR/database/neocheck.db" ]; then
+        cp -a "$INSTALL_DIR/database/neocheck.db" "$backup_dir/neocheck.db"
+    fi
+
+    log_info "Backed up config and database to $backup_dir"
+}
+
+installation_exists() {
+    [ -f "$INSTALL_DIR/config/config.yaml" ]
+}
 repair_ssl_config() {
     local cfg="$INSTALL_DIR/config/config.yaml"
     local cert="$INSTALL_DIR/ssl/server.crt"
     local key="$INSTALL_DIR/ssl/server.key"
     [ -f "$cfg" ] || return 0
 
-    if ! grep -qE "enabled:[[:space:]]*true" "$cfg"; then
+    if ! awk '/^ssl:/{block=1} block && /^[^[:space:]]/ && !/^ssl:/{block=0} block && /enabled:/{print; exit}' "$cfg" | grep -qE 'enabled:[[:space:]]*true'; then
         return 0
     fi
 
     if [ ! -f "$cert" ] || [ ! -f "$key" ]; then
-        log_warn "SSL is enabled but certificate files are missing. Disabling SSL so NeoCheck can start."
-        sed -i 's/enabled: true/enabled: false/' "$cfg"
+        log_warn "SSL is enabled but certificate files are missing. Disabling SSL only (providers and admin settings are preserved)."
+        disable_ssl_in_config "$cfg"
         return 0
     fi
 
     if grep -qE 'cert_path:[[:space:]]*""' "$cfg" || grep -qE 'cert_path:[[:space:]]*$' "$cfg"; then
         log_warn "Repairing empty SSL certificate paths in config.yaml..."
-        sed -i 's|cert_path: ""|cert_path: "/opt/neocheck/ssl/server.crt"|g' "$cfg"
-        sed -i 's|key_path: ""|key_path: "/opt/neocheck/ssl/server.key"|g' "$cfg"
-        sed -i "s|cert_path: ''|cert_path: \"/opt/neocheck/ssl/server.crt\"|g" "$cfg"
-        sed -i "s|key_path: ''|key_path: \"/opt/neocheck/ssl/server.key\"|g" "$cfg"
+        fix_ssl_paths_in_config "$cfg"
     fi
 }
 
@@ -472,6 +520,10 @@ action_install() {
     check_root
     check_os
     check_dependencies
+
+    if installation_exists; then
+        log_error "NeoCheck is already installed at $INSTALL_DIR. Use option 2 (update) to upgrade without losing admin credentials, API keys, or database."
+    fi
     
     prompt_port
     prompt_address
@@ -506,14 +558,11 @@ action_update() {
 
     cd "$INSTALL_DIR"
     SERVER_PORT=$(detect_server_port)
+    backup_installation_data
     ensure_docker_compose
     repair_ssl_config
 
-    # 2. Stop old containers so new images are always applied cleanly
-    log_info "Stopping current containers..."
-    compose_down
-
-    # 3. Pull latest images and recreate containers
+    # Pull latest images and recreate containers (keep bind-mounted config/database)
     log_info "Pulling latest Docker images..."
     compose_pull || log_warn "Some images could not be pulled. Continuing with available images."
 
@@ -589,7 +638,7 @@ else
         install) action_install ;;
         update) action_update ;;
         uninstall) action_uninstall ;;
-        repair) action_install ;;
+        repair) log_error "Repair was removed to prevent accidental data loss. Use option 2 (update) instead." ;;
         *) log_error "Unknown command: $COMMAND. Valid commands: install, update, uninstall, repair." ;;
     esac
 fi

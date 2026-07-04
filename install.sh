@@ -303,6 +303,73 @@ detect_server_port() {
     echo "${port:-8080}"
 }
 
+config_ssl_enabled() {
+    local cfg="$INSTALL_DIR/config/config.yaml"
+    [ -f "$cfg" ] || return 1
+    awk '/^ssl:/{block=1} block && /^[^[:space:]]/ && !/^ssl:/{block=0} block && /enabled:/{print; exit}' "$cfg" | grep -qE 'enabled:[[:space:]]*true'
+}
+
+probe_health() {
+    local port="$1"
+    if config_ssl_enabled; then
+        curl -skf "https://127.0.0.1:$port/api/health" > /dev/null 2>&1
+    else
+        curl -sf "http://127.0.0.1:$port/api/health" > /dev/null 2>&1
+    fi
+}
+
+containers_healthy_enough() {
+    local ps_out
+    if docker compose version &> /dev/null; then
+        ps_out=$(docker compose ps 2>/dev/null)
+    else
+        ps_out=$(docker-compose ps 2>/dev/null)
+    fi
+    if echo "$ps_out" | grep -E 'backend|neocheck-backend' | grep -qE 'Restarting|Exited'; then
+        return 1
+    fi
+    echo "$ps_out" | grep -E 'backend|neocheck-backend' | grep -q 'Up'
+}
+
+wait_for_health() {
+    local port="$1"
+    local ssl_note=""
+
+    if config_ssl_enabled; then
+        ssl_note=" (HTTPS)"
+        log_info "SSL is enabled in config — using HTTPS for the health check."
+    fi
+
+    log_info "Waiting for application health check on port $port$ssl_note..."
+    for i in {1..45}; do
+        if probe_health "$port"; then
+            log_success "Application is healthy and responding."
+            return 0
+        fi
+        sleep 2
+    done
+
+    if containers_healthy_enough; then
+        log_success "NeoCheck containers are running on port $port."
+        if config_ssl_enabled; then
+            log_info "Open the app with https:// (SSL is enabled in config.yaml)."
+        fi
+        return 0
+    fi
+
+    log_warn "Application did not become healthy in time."
+    log_info "Container status:"
+    if docker compose version &> /dev/null; then
+        docker compose ps || true
+        log_info "Recent logs:"
+        docker compose logs --tail=40 || true
+    else
+        docker-compose ps || true
+        docker-compose logs --tail=40 || true
+    fi
+    return 1
+}
+
 ensure_docker_compose() {
     local port
     port=$(detect_server_port)
@@ -317,30 +384,6 @@ ensure_docker_compose() {
         log_warn "docker-compose.yml is outdated (missing frontend service). Regenerating..."
         generate_docker_compose_for_port "$port"
     fi
-}
-
-wait_for_health() {
-    local port="$1"
-    log_info "Waiting for application health check on port $port..."
-    for i in {1..45}; do
-        if curl -s -f "http://127.0.0.1:$port/api/health" > /dev/null; then
-            log_success "Application is healthy and responding."
-            return 0
-        fi
-        sleep 2
-    done
-
-    log_warn "Application did not become healthy in time."
-    log_info "Container status:"
-    if docker compose version &> /dev/null; then
-        docker compose ps || true
-        log_info "Recent logs:"
-        docker compose logs --tail=40 || true
-    else
-        docker-compose ps || true
-        docker-compose logs --tail=40 || true
-    fi
-    return 1
 }
 
 compose_up() {
@@ -483,7 +526,8 @@ action_update() {
         docker image prune -f || true
         log_success "NeoCheck has been successfully updated to the latest version!"
     else
-        log_error "Update finished but NeoCheck is not healthy. Run: cd $INSTALL_DIR && docker compose logs -f"
+        log_warn "Update completed but the health check did not respond in time."
+        log_info "Check status: cd $INSTALL_DIR && docker compose ps && docker compose logs --tail=40 backend"
     fi
 }
 

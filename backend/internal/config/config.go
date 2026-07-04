@@ -157,6 +157,17 @@ func Load() error {
 		return fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	if repaired, err := NormalizeSSLConfig(&loadedConfig); err != nil {
+		return fmt.Errorf("configuration validation failed: %w", err)
+	} else if repaired {
+		cfgMutex.Lock()
+		current = &loadedConfig
+		cfgMutex.Unlock()
+		if err := Save(); err != nil {
+			return fmt.Errorf("failed to persist repaired ssl configuration: %w", err)
+		}
+	}
+
 	if err := validate(&loadedConfig); err != nil {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
@@ -234,6 +245,40 @@ func validate(cfg *Config) error {
 		}
 	}
 	return nil
+}
+
+func NormalizeSSLConfig(cfg *Config) (repaired bool, err error) {
+	if !cfg.SSL.Enabled {
+		return false, nil
+	}
+
+	baseDir := GetBaseDir()
+	if cfg.SSL.CertPath == "" {
+		cfg.SSL.CertPath = filepath.Join(baseDir, "ssl", "server.crt")
+		repaired = true
+	}
+	if cfg.SSL.KeyPath == "" {
+		cfg.SSL.KeyPath = filepath.Join(baseDir, "ssl", "server.key")
+		repaired = true
+	}
+
+	certOK := fileExists(cfg.SSL.CertPath)
+	keyOK := fileExists(cfg.SSL.KeyPath)
+	if certOK && keyOK {
+		return repaired, nil
+	}
+
+	cfg.SSL.Enabled = false
+	repaired = true
+	return repaired, nil
+}
+
+func fileExists(path string) bool {
+	if path == "" {
+		return false
+	}
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func generateDefaults() error {

@@ -367,6 +367,31 @@ compose_down() {
     fi
 }
 
+repair_ssl_config() {
+    local cfg="$INSTALL_DIR/config/config.yaml"
+    local cert="$INSTALL_DIR/ssl/server.crt"
+    local key="$INSTALL_DIR/ssl/server.key"
+    [ -f "$cfg" ] || return 0
+
+    if ! grep -qE "enabled:[[:space:]]*true" "$cfg"; then
+        return 0
+    fi
+
+    if [ ! -f "$cert" ] || [ ! -f "$key" ]; then
+        log_warn "SSL is enabled but certificate files are missing. Disabling SSL so NeoCheck can start."
+        sed -i 's/enabled: true/enabled: false/' "$cfg"
+        return 0
+    fi
+
+    if grep -qE 'cert_path:[[:space:]]*""' "$cfg" || grep -qE 'cert_path:[[:space:]]*$' "$cfg"; then
+        log_warn "Repairing empty SSL certificate paths in config.yaml..."
+        sed -i 's|cert_path: ""|cert_path: "/opt/neocheck/ssl/server.crt"|g' "$cfg"
+        sed -i 's|key_path: ""|key_path: "/opt/neocheck/ssl/server.key"|g' "$cfg"
+        sed -i "s|cert_path: ''|cert_path: \"/opt/neocheck/ssl/server.crt\"|g" "$cfg"
+        sed -i "s|key_path: ''|key_path: \"/opt/neocheck/ssl/server.key\"|g" "$cfg"
+    fi
+}
+
 start_application() {
     log_info "Starting NeoCheck application via Docker Compose..."
     cd "$INSTALL_DIR"
@@ -439,6 +464,7 @@ action_update() {
     cd "$INSTALL_DIR"
     SERVER_PORT=$(detect_server_port)
     ensure_docker_compose
+    repair_ssl_config
 
     # 2. Stop old containers so new images are always applied cleanly
     log_info "Stopping current containers..."

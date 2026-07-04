@@ -82,6 +82,18 @@ func (api *ConfigAPI) UpdateConfig(c *gin.Context) {
 	if payload.Providers.Scamalytics.APIKey == "---" {
 		payload.Providers.Scamalytics.APIKey = existingCfg.Providers.Scamalytics.APIKey
 	}
+	if payload.SSL.CertPath == "" {
+		payload.SSL.CertPath = existingCfg.SSL.CertPath
+	}
+	if payload.SSL.KeyPath == "" {
+		payload.SSL.KeyPath = existingCfg.SSL.KeyPath
+	}
+	if payload.SSL.Enabled {
+		if _, err := config.NormalizeSSLConfig(&payload); err != nil {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+			return
+		}
+	}
 
 	if err := config.Update(&payload); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})

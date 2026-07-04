@@ -263,13 +263,18 @@ EOF
 }
 
 generate_docker_compose() {
+    generate_docker_compose_for_port "$SERVER_PORT"
+}
+
+generate_docker_compose_for_port() {
+    local port="$1"
     log_info "Generating docker-compose.yml..."
     cat <<EOF > "$INSTALL_DIR/docker-compose.yml"
 services:
   backend:
     image: ghcr.io/neoauroraproject/neocheck-backend:latest
     ports:
-      - "$SERVER_PORT:8080"
+      - "$port:8080"
     volumes:
       - ./config:/opt/neocheck/config
       - ./database:/opt/neocheck/database
@@ -290,27 +295,86 @@ EOF
     log_success "docker-compose.yml generated."
 }
 
+detect_server_port() {
+    local port=""
+    if [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+        port=$(grep -oE '[0-9]+:8080' "$INSTALL_DIR/docker-compose.yml" | head -1 | cut -d: -f1)
+    fi
+    echo "${port:-8080}"
+}
+
+ensure_docker_compose() {
+    local port
+    port=$(detect_server_port)
+
+    if [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
+        log_warn "docker-compose.yml missing. Regenerating..."
+        generate_docker_compose_for_port "$port"
+        return
+    fi
+
+    if ! grep -q "^[[:space:]]*frontend:" "$INSTALL_DIR/docker-compose.yml"; then
+        log_warn "docker-compose.yml is outdated (missing frontend service). Regenerating..."
+        generate_docker_compose_for_port "$port"
+    fi
+}
+
+wait_for_health() {
+    local port="$1"
+    log_info "Waiting for application health check on port $port..."
+    for i in {1..45}; do
+        if curl -s -f "http://127.0.0.1:$port/api/health" > /dev/null; then
+            log_success "Application is healthy and responding."
+            return 0
+        fi
+        sleep 2
+    done
+
+    log_warn "Application did not become healthy in time."
+    log_info "Container status:"
+    if docker compose version &> /dev/null; then
+        docker compose ps || true
+        log_info "Recent logs:"
+        docker compose logs --tail=40 || true
+    else
+        docker-compose ps || true
+        docker-compose logs --tail=40 || true
+    fi
+    return 1
+}
+
+compose_up() {
+    if docker compose version &> /dev/null; then
+        docker compose up -d --force-recreate --remove-orphans --pull always
+    else
+        docker-compose up -d --force-recreate --remove-orphans --pull always
+    fi
+}
+
+compose_pull() {
+    if docker compose version &> /dev/null; then
+        docker compose pull
+    else
+        docker-compose pull
+    fi
+}
+
+compose_down() {
+    if docker compose version &> /dev/null; then
+        docker compose down --remove-orphans || true
+    else
+        docker-compose down --remove-orphans || true
+    fi
+}
+
 start_application() {
     log_info "Starting NeoCheck application via Docker Compose..."
     cd "$INSTALL_DIR"
-    
-    if docker compose version &> /dev/null; then
-        docker compose pull && docker compose up -d
-    else
-        docker-compose pull && docker-compose up -d
-    fi
 
-    log_info "Waiting for application health check..."
-    for i in {1..30}; do
-        if curl -s -f http://127.0.0.1:$SERVER_PORT/api/health > /dev/null; then
-            log_success "Application is healthy and responding."
-            break
-        fi
-        sleep 2
-        if [ "$i" -eq 30 ]; then
-            log_warn "Application is taking longer than expected to start. Please check logs."
-        fi
-    done
+    compose_pull || log_warn "Some images could not be pulled. Continuing with available images."
+    compose_up
+
+    wait_for_health "$SERVER_PORT" || log_warn "Application is taking longer than expected to start. Please check logs."
 }
 
 finish_installation() {
@@ -364,30 +428,37 @@ action_update() {
     fi
 
     log_info "Starting update process..."
-    
-    # 1. Update source code if present
+
+    # 1. Update source code if present (reference only; runtime uses Docker images)
     if [ -d "$INSTALL_DIR/src/.git" ]; then
         log_info "Updating source code repository..."
         cd "$INSTALL_DIR/src"
         git pull || log_warn "Failed to pull latest git changes. Proceeding anyway."
     fi
-    
-    # 2. Pull latest docker images and restart
-    cd "$INSTALL_DIR"
-    log_info "Pulling latest Docker images..."
-    if docker compose version &> /dev/null; then
-        docker compose pull
-        docker compose up -d --remove-orphans
-    else
-        docker-compose pull
-        docker-compose up -d --remove-orphans
-    fi
 
-    # 3. Clean up unused old docker images to free up space
-    log_info "Pruning unused Docker images..."
-    docker image prune -f || true
-    
-    log_success "NeoCheck has been successfully updated to the latest version!"
+    cd "$INSTALL_DIR"
+    SERVER_PORT=$(detect_server_port)
+    ensure_docker_compose
+
+    # 2. Stop old containers so new images are always applied cleanly
+    log_info "Stopping current containers..."
+    compose_down
+
+    # 3. Pull latest images and recreate containers
+    log_info "Pulling latest Docker images..."
+    compose_pull || log_warn "Some images could not be pulled. Continuing with available images."
+
+    log_info "Starting containers with latest images..."
+    compose_up
+
+    # 4. Verify the app actually came back
+    if wait_for_health "$SERVER_PORT"; then
+        log_info "Pruning unused Docker images..."
+        docker image prune -f || true
+        log_success "NeoCheck has been successfully updated to the latest version!"
+    else
+        log_error "Update finished but NeoCheck is not healthy. Run: cd $INSTALL_DIR && docker compose logs -f"
+    fi
 }
 
 action_uninstall() {

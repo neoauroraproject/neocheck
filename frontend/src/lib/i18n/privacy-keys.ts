@@ -266,9 +266,10 @@ export const privacyEn = {
   evCorporateNetwork: "Corporate / institutional network",
   evCorporateAsn: "Business ASN type",
   evLowFraudScore: "Low fraud score",
-  evHighFraudScore: "Elevated fraud score",
-  evNotResidential: "Not consistent with residential",
-  evInsufficientEvidence: "Limited classification evidence",
+	evHighFraudScore: "Elevated fraud score",
+	evNotResidential: "Not consistent with residential",
+	evInsufficientEvidence: "Limited classification evidence",
+	evHostingAsn: "Hosting ASN detected",
 } as const
 
 export const privacyFa: Record<keyof typeof privacyEn, string> = {
@@ -538,7 +539,8 @@ export const privacyFa: Record<keyof typeof privacyEn, string> = {
   evCorporateNetwork: "شبکه سازمانی / institution",
   evCorporateAsn: "نوع ASN business",
   evLowFraudScore: "امتیاز fraud پایین",
-  evHighFraudScore: "امتیاز fraud بالا",
-  evNotResidential: "با مسکونی سازگار نیست",
-  evInsufficientEvidence: "شواهد محدود برای طبقه‌بندی",
+	evHighFraudScore: "امتیاز fraud بالا",
+	evNotResidential: "با مسکونی سازگار نیست",
+	evInsufficientEvidence: "شواهد محدود برای طبقه‌بندی",
+	evHostingAsn: "ASN hosting شناسایی شد",
 }

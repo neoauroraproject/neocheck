@@ -22,7 +22,7 @@ var fraudProviderCatalog = []providerMeta{
 	},
 	{
 		Name:        "BigDataCloud",
-		Implemented: false,
+		Implemented: true,
 		Enabled:     func(c *config.Config) bool { return c.Providers.BigDataCloud.Enabled },
 		Configured:  func(c *config.Config) bool { return c.Providers.BigDataCloud.APIKey != "" },
 	},
@@ -113,7 +113,10 @@ func BuildFraudProviderInsights(cfg *config.Config, results []pipeline.ResultWra
 			continue
 		}
 
-		insight.Queried = true
+		insight.Queried = fraud.Queried
+		if !insight.Queried && fraud.RiskScore > 0 {
+			insight.Queried = true
+		}
 		score := fraud.RiskScore
 		insight.RiskScore = &score
 		out = append(out, insight)

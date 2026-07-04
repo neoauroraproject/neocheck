@@ -19,6 +19,7 @@ import (
 	"neocheck-backend/internal/config"
 	"neocheck-backend/internal/engine/plugin"
 	"neocheck-backend/internal/plugins/abuseipdb"
+	"neocheck-backend/internal/plugins/bigdatacloud"
 	"neocheck-backend/internal/plugins/geo"
 	"neocheck-backend/internal/plugins/browser"
 	"neocheck-backend/internal/plugins/security"
@@ -60,6 +61,7 @@ func main() {
 	// 3. Register Plugins
 	plugin.Register(geo.New())
 	plugin.Register(abuseipdb.New())
+	plugin.Register(bigdatacloud.New())
 	plugin.Register(browser.New())
 	plugin.Register(security.New())
 	plugin.Register(ipqualityscore.New())

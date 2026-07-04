@@ -27,7 +27,7 @@ var catalog = []catalogEntry{
 	{ID: "scamalytics", Name: "Scamalytics", Implemented: false,
 		Enabled: func(c *config.Config) bool { return c.Providers.Scamalytics.Enabled },
 		Configured: func(c *config.Config) bool { return c.Providers.Scamalytics.APIKey != "" }},
-	{ID: "bigdatacloud", Name: "BigDataCloud", Implemented: false,
+	{ID: "bigdatacloud", Name: "BigDataCloud", Implemented: true, PluginName: "bigdatacloud",
 		Enabled: func(c *config.Config) bool { return c.Providers.BigDataCloud.Enabled },
 		Configured: func(c *config.Config) bool { return c.Providers.BigDataCloud.APIKey != "" }},
 	{ID: "ipinfo", Name: "IPinfo", Implemented: false},

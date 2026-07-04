@@ -154,7 +154,18 @@ func (api *SystemAPI) TestProvider(c *gin.Context) {
 		testCfg.Providers.Scamalytics.APIKey = req.APIKey
 	}
 
-	// Test initialization and perform check against loopback/mock IP
+	if err := targetProvider.Initialize(&testCfg); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"error":   fmt.Sprintf("initialization failed: %v", err),
+		})
+		return
+	}
+	defer func() {
+		_ = targetProvider.Initialize(config.Get())
+	}()
+
+	// Test perform check against a well-known public IP
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
